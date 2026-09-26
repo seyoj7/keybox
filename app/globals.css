@@ -1,0 +1,120 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --bg-main: #07090e;
+  --bg-window: #090c12;
+  --bg-input: rgba(17, 21, 30, 0.75);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-focus: rgba(129, 140, 248, 0.5);
+  --accent-primary: #818cf8;
+  --accent-secondary: #9ba3f9;
+  --accent-btn-bg: #818cf8;
+  --accent-btn-hover: #949ef9;
+  --accent-btn-text: #0b0f1a;
+  --text-main: #ffffff;
+  --text-muted: #8e98a8;
+  --text-dim: #545e70;
+  --glow-purple: rgba(129, 140, 248, 0.18);
+  --glow-indigo: rgba(79, 70, 229, 0.22);
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  background-color: #030407;
+  color: var(--text-main);
+  font-family: var(--font-inter);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Keyframes for subtle animations */
+@keyframes pulseSlow {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1) translateY(0);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.02) translateY(-4px);
+  }
+}
+
+@keyframes ribbonFloat {
+  0%, 100% {
+    opacity: 0.7;
+    filter: blur(40px) brightness(1);
+  }
+  50% {
+    opacity: 0.95;
+    filter: blur(48px) brightness(1.15);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+.animate-fade-in {
+  animation: fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.ripple-circle {
+  animation: ripple 1.8s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}

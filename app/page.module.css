@@ -1,0 +1,268 @@
+.pageContainer {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #020408;
+  padding: 20px;
+}
+
+.mainFrame {
+  width: 100%;
+  max-width: 1020px;
+  min-height: 680px;
+  background-color: #090c13;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.8);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.backgroundAura {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.baseDarkCanvas {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 30%, #0d121c 0%, #080a0f 65%, #050609 100%);
+}
+
+.centerContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  position: relative;
+  z-index: 10;
+  text-align: center;
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+.mainTitle {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  margin-bottom: 12px;
+}
+
+.titleHighlight {
+  color: #818cf8;
+}
+
+.subtitle {
+  font-size: 15px;
+  color: #8e98a8;
+  margin-bottom: 36px;
+}
+
+.masterPasswordForm {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.inputContainer {
+  width: 100%;
+  height: 52px;
+  border-radius: 14px;
+  background-color: rgba(16, 20, 30, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  backdrop-filter: blur(16px);
+}
+
+.lockIcon {
+  margin-right: 12px;
+  color: #727e93;
+  width: 19px;
+  height: 19px;
+}
+
+.passwordInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #ffffff;
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.eyeButton {
+  background: transparent;
+  border: none;
+  color: #727e93;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+}
+
+.eyeIcon {
+  width: 18px;
+  height: 18px;
+}
+
+.unlockButton {
+  width: 100%;
+  border-radius: 14px;
+  height: 52px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0b0f1a;
+  background-color: #818cf8;
+}
+
+.arrowIcon {
+  width: 17px;
+  height: 17px;
+  stroke-width: 2.2px;
+}
+
+.dividerContainer {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 400px;
+  margin: 28px 0 24px 0;
+}
+
+.dividerLine {
+  flex: 1;
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.dividerText {
+  padding: 0 14px;
+  font-size: 13px;
+  color: #525e73;
+}
+
+.helloCard {
+  width: 100%;
+  max-width: 400px;
+  border-radius: 16px;
+  padding: 16px 20px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+}
+
+.helloContent {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  text-align: left;
+}
+
+.helloIconContainer {
+  color: #818cf8;
+  display: flex;
+  align-items: center;
+}
+
+.helloFingerprint {
+  width: 34px;
+  height: 34px;
+  stroke-width: 1.7px;
+}
+
+.helloTextContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.helloTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.helloSubtitle {
+  font-size: 13px;
+  color: #6b778c;
+}
+
+.modalContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 10px 0;
+}
+
+.modalIconContainer {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.modalIconSuccess {
+  background-color: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #4ade80;
+}
+
+.modalIconScanning {
+  background-color: rgba(129, 140, 248, 0.12);
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  color: #818cf8;
+}
+
+.modalIconCheck {
+  width: 32px;
+  height: 32px;
+}
+
+.modalIconFingerprint {
+  width: 32px;
+  height: 32px;
+}
+
+.modalTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 6px;
+}
+
+.modalSubtitle {
+  font-size: 13px;
+  color: #8390a4;
+  margin-bottom: 20px;
+}
+
+.errorMessage {
+  color: #ef4444;
+  font-size: 0.875rem;
+  text-align: center;
+  margin-top: 0.5rem;
+}
