@@ -8,12 +8,13 @@ class Vault:
     def __init__(self, key: bytes):
         self.key = key
         
-    def add_entry(self, website, username, password, profile="Default"):
+    def add_entry(self, website, username, password, profile="Default", icon=None):
         payload = json.dumps({
             "website": website,
             "username": username,
             "password": password,
-            "profile": profile
+            "profile": profile,
+            "icon": icon
         }).encode('utf-8')
         
         ciphertext, nonce = encrypt(self.key, payload)
@@ -35,12 +36,14 @@ class Vault:
         data['id'] = entry_id
         data['created_at'] = created_at
         data['updated_at'] = updated_at
-        # Backward compat: old entries won't have 'profile'
+        # Backward compat: old entries won't have 'profile' or 'icon'
         if 'profile' not in data:
             data['profile'] = 'Default'
+        if 'icon' not in data:
+            data['icon'] = None
         return data
 
-    def update_entry(self, entry_id: int, website, username, password, profile="Default"):
+    def update_entry(self, entry_id: int, website, username, password, profile="Default", icon=None):
         # Verify it exists and isn't tampered with
         self.get_entry(entry_id)
         
@@ -48,7 +51,8 @@ class Vault:
             "website": website,
             "username": username,
             "password": password,
-            "profile": profile
+            "profile": profile,
+            "icon": icon
         }).encode('utf-8')
         
         ciphertext, nonce = encrypt(self.key, payload)
@@ -70,6 +74,8 @@ class Vault:
                     "website": data.get("website"),
                     "username": data.get("username"),
                     "profile": data.get("profile", "Default"),
+                    "icon": data.get("icon"),
+                    "color": data.get("color"),
                     "created_at": created_at,
                     "updated_at": updated_at
                 })

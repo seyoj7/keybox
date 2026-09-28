@@ -1,3 +1,7 @@
+/* ==========================================================================
+   Vault Dashboard Layout
+   ========================================================================== */
+
 .dashboard {
   display: flex;
   width: 100%;
@@ -9,6 +13,10 @@
   inset: 0;
   z-index: 50;
 }
+
+/* ==========================================================================
+   Sidebar: Brand, Navigation & Profiles
+   ========================================================================== */
 
 .sidebar {
   width: 260px;
@@ -25,8 +33,22 @@
   gap: 10px;
   height: 60px;
   padding: 0 24px;
-  margin-bottom: 0;
   box-sizing: border-box;
+}
+
+.brandLogoContainer {
+  width: 25px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brandLogoImage {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
 }
 
 .brandName {
@@ -42,6 +64,42 @@
   gap: 4px;
   flex: 1;
   padding: 0 16px;
+  overflow-y: auto;
+}
+
+.navHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: #525e73;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.addProfileBtn {
+  background: transparent;
+  border: none;
+  color: #8e98a8;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  margin-right: -3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.addProfileBtn:hover {
+  color: #ffffff;
 }
 
 .navItem {
@@ -52,7 +110,7 @@
   color: #8e98a8;
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s;
 }
 
 .navItem:hover {
@@ -65,9 +123,56 @@
   color: #ffffff;
 }
 
-.editProfileBtn {
+.profileIcon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.profileIconImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profileIconText {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.profileNameText {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profileActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s ease;
+  margin-left: auto;
+  margin-right: 6px;
+}
+
+.navItem:hover .profileActions,
+.profileActions.isHoldingAny {
+  opacity: 1;
+}
+
+.editProfileBtn {
   background: transparent;
   border: none;
   color: #8e98a8;
@@ -77,11 +182,7 @@
   justify-content: center;
   padding: 4px;
   border-radius: 4px;
-  margin-right: 8px;
-}
-
-.navItem:hover .editProfileBtn {
-  opacity: 1;
+  transition: opacity 0.2s, color 0.2s, background-color 0.2s;
 }
 
 .editProfileBtn:hover {
@@ -89,26 +190,61 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
-.navIcon {
-  width: 18px;
-  height: 18px;
-  margin-right: 12px;
+.deleteProfileBtn {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: #8e98a8;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, background-color 0.2s, transform 0.15s;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.deleteProfileBtn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.deleteProfileBtn.isHolding {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.35);
+  transform: scale(1.08);
+}
+
+.deleteProfileBtn.isHolding .holdProgressBg {
+  stroke: rgba(239, 68, 68, 0.2);
+}
+
+.deleteProfileBtn.isHolding .holdProgressFill {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 5s linear;
+}
+
+.deleteProfileIcon {
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+  transition: transform 0.2s ease;
+}
+
+.deleteProfileBtn.isHolding .deleteProfileIcon {
+  transform: scale(0.9);
 }
 
 .badge {
-  margin-left: auto;
   font-size: 12px;
   background-color: transparent;
   color: inherit;
-}
-
-.sectionTitle {
-  font-size: 12px;
-  font-weight: 500;
-  color: #525e73;
-  text-transform: uppercase;
-  margin: 24px 0 8px 12px;
-  letter-spacing: 0.5px;
+  flex-shrink: 0;
 }
 
 .settings {
@@ -120,6 +256,7 @@
   font-size: 14px;
   cursor: pointer;
   border-radius: 8px;
+  transition: background-color 0.2s, color 0.2s;
 }
 
 .settings:hover {
@@ -127,12 +264,23 @@
   color: #ffffff;
 }
 
+.navIcon {
+  width: 18px;
+  height: 18px;
+  margin-right: 12px;
+}
+
+/* ==========================================================================
+   Main Area & Header
+   ========================================================================== */
+
 .main {
   flex: 1;
   background-color: #0d1117;
   display: flex;
   flex-direction: column;
   position: relative;
+  min-width: 0;
 }
 
 .header {
@@ -140,6 +288,14 @@
   align-items: center;
   padding: 24px 32px;
   gap: 8px;
+}
+
+.headerLeftGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
 }
 
 .searchBar {
@@ -159,6 +315,7 @@
   width: 18px;
   height: 18px;
   margin-right: 12px;
+  flex-shrink: 0;
 }
 
 .searchInput {
@@ -175,12 +332,10 @@
   color: #525e73;
 }
 
-.shortcut {
-  font-size: 12px;
-  color: #525e73;
-  background-color: #11141d;
-  padding: 2px 6px;
-  border-radius: 4px;
+.actionsGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .addButton {
@@ -197,6 +352,7 @@
   gap: 8px;
   cursor: pointer;
   transition: opacity 0.2s;
+  white-space: nowrap;
 }
 
 .addButton:hover {
@@ -208,38 +364,19 @@
   height: 18px;
 }
 
-.actionsGroup {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-
-.windowControlsWrapper>header {
+.windowControlsWrapper > header {
   padding: 0 !important;
   width: auto !important;
 }
 
-.windowControlsWrapper>header>div:first-child {
+.windowControlsWrapper > header > div:first-child {
   display: none !important;
   /* Hide the logo/title part from Navbar */
 }
 
-.windowControlsAbsolute {
-  position: absolute;
-  top: 24px;
-  right: 32px;
-  z-index: 100;
-}
-
-.windowControlsAbsolute>header {
-  padding: 0 !important;
-  width: auto !important;
-}
-
-.windowControlsAbsolute>header>div:first-child {
-  display: none !important;
-}
+/* ==========================================================================
+   Vault Entries List & Empty State
+   ========================================================================== */
 
 .list {
   display: flex;
@@ -247,160 +384,6 @@
   gap: 8px;
   padding: 0 32px 32px;
   overflow-y: auto;
-}
-
-.tile {
-  background-color: #161b22;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  padding: 12px 20px;
-  display: flex;
-  align-items: center;
-  transition: transform 0.2s, background-color 0.2s;
-  cursor: pointer;
-}
-
-.tile:hover {
-  background-color: #1c212b;
-}
-
-.tileIconWrapper {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.tileContent {
-  display: flex;
-  flex-direction: column;
-  width: 140px;
-  flex-shrink: 0;
-}
-
-.tileTitle {
-  font-size: 15px;
-  font-weight: 600;
-  color: #ffffff;
-  margin: 0 0 2px 0;
-}
-
-.tileDomain {
-  font-size: 13px;
-  color: #8e98a8;
-  margin: 0;
-}
-
-.tileUsername {
-  font-size: 14px;
-  color: #8e98a8;
-  width: 200px;
-  margin: 0 24px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tileActions {
-  display: flex;
-  gap: 12px;
-  color: #525e73;
-  margin-left: auto;
-}
-
-.actionIcon {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-.actionIcon:hover {
-  color: #ffffff;
-}
-
-.brandLogoContainer {
-  width: 25px;
-  height: 25px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.brandLogoImage {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
-}
-
-.navHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
-  margin-top: 8px;
-  margin-bottom: 8px;
-}
-
-.addProfileBtn {
-  background: transparent;
-  border: none;
-  color: #8e98a8;
-  cursor: pointer;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.2s;
-  margin-right: -3px;
-}
-
-.addProfileBtn:hover {
-  color: #fff;
-}
-
-.profileIcon {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 12px;
-  overflow: hidden;
-}
-
-.profileIconImg {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.profileIconText {
-  font-size: 10px;
-  font-weight: bold;
-  color: #fff;
-  text-transform: uppercase;
-}
-
-.profileNameText {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.headerLeftGroup {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
 }
 
 .emptyState {
@@ -423,8 +406,7 @@
   font-size: 18px;
   font-weight: 600;
   color: #e2e8f0;
-  margin-bottom: 8px;
-  margin: 0;
+  margin: 0 0 8px 0;
 }
 
 .emptyStateDesc {
@@ -432,24 +414,150 @@
   margin: 0;
 }
 
+/* ==========================================================================
+   Vault Entry Tile (Normal View)
+   ========================================================================== */
+
+.tile {
+  background-color: #161b22;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  transition: transform 0.2s, background-color 0.2s;
+  cursor: pointer;
+}
+
+.tile:hover {
+  background-color: #1c212b;
+}
+
+.tileIconContainer {
+  position: relative;
+  margin-right: -15px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tileIconWrapper {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.tileIconImg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.tileIconWrapperEditable {
+  cursor: pointer;
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.04);
+  transition: all 0.2s ease;
+}
+
+.tileIconWrapperEditable:hover,
+.tileIconWrapperDragging {
+  border-color: #818cf8;
+  background: rgba(129, 140, 248, 0.12);
+}
+
+.tileIconOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(1px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  color: #ffffff;
+  border-radius: 7px;
+  pointer-events: none;
+}
+
+.tileIconWrapperEditable:hover .tileIconOverlay,
+.tileIconWrapperDragging .tileIconOverlay {
+  opacity: 1;
+}
+
+.tileIconRemoveBtn {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ef4444;
+  color: #ffffff;
+  border: 1.5px solid #161b22;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  z-index: 10;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.tileIconRemoveBtn:hover {
+  transform: scale(1.15);
+  background: #dc2626;
+}
+
+.tileContent {
+  display: flex;
+  flex-direction: column;
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.tileTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 2px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .tileUsernameContainer {
   display: flex;
   align-items: center;
+  justify-content: center;
   flex: 1;
-  margin: 0 8px;
   color: #8e98a8;
   font-size: 14px;
+  transform: translateX(-40px);
 }
 
 .tileUsernameText {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tilePasswordContainer {
   display: flex;
   align-items: center;
-  width: 200px;
-  flex-shrink: 0;
+  flex: 1;
   color: #8e98a8;
   font-size: 14px;
   gap: 8px;
@@ -457,9 +565,7 @@
 
 .tilePasswordText {
   font-family: monospace;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-all;
 }
 
 .tilePasswordToggleBtn {
@@ -472,141 +578,159 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: color 0.2s;
 }
 
-.modalOverlay {
+.tilePasswordToggleBtn:hover {
+  color: #ffffff;
+}
+
+.tileActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #525e73;
+  margin-left: auto;
+}
+
+.actionIcon {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.actionIcon:hover {
+  color: #ffffff;
+}
+
+.tileEditBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: #8e98a8;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.tileEditBtn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tileDeleteBtn {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: #8e98a8;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, background-color 0.2s, transform 0.15s;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tileDeleteBtn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.tileDeleteBtn.isHolding {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.35);
+  transform: scale(1.08);
+}
+
+.holdProgressRing {
   position: absolute;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modalContent {
-  background: #161b22;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 24px;
-  width: 400px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-}
-
-.modalHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modalTitle {
-  font-size: 18px;
-  font-weight: 600;
-  color: #fff;
-  margin: 0;
-}
-
-.modalCloseBtn {
-  background: transparent;
-  border: none;
-  color: #8e98a8;
-  cursor: pointer;
-}
-
-.modalFormGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.modalLabel {
-  font-size: 13px;
-  color: #8e98a8;
-}
-
-.modalInput {
-  background: #0d1117;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 10px 12px;
-  color: #fff;
-  font-size: 14px;
-  outline: none;
-}
-
-.modalImageUpload {
-  border: 2px dashed rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: #8e98a8;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.modalImageUpload:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.modalImagePreview {
-  width: 64px;
-  height: 64px;
-  border-radius: 8px;
-  overflow: hidden;
-  margin-bottom: 8px;
-}
-
-.modalImagePreviewImg {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  pointer-events: none;
 }
 
-.modalActionGroup {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 8px;
+.holdProgressBg {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 2.2;
+  transition: stroke 0.2s ease;
 }
 
-.modalCancelBtn {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #fff;
-  padding: 8px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
+.tileDeleteBtn.isHolding .holdProgressBg {
+  stroke: rgba(239, 68, 68, 0.2);
 }
 
-.modalSaveBtn {
-  background: #6366f1;
-  border: none;
-  color: #fff;
-  padding: 8px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
+.holdProgressFill {
+  fill: none;
+  stroke: #ef4444;
+  stroke-width: 2.2;
+  stroke-dasharray: 82;
+  stroke-dashoffset: 82;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 0.2s ease;
+}
+
+.tileDeleteBtn.isHolding .holdProgressFill {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 5s linear;
+}
+
+.deleteIcon {
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  transition: transform 0.2s ease;
+}
+
+.tileDeleteBtn.isHolding .deleteIcon {
+  transform: scale(0.9);
+}
+
+/* ==========================================================================
+   Vault Entry Tile (Inline Edit Mode)
+   ========================================================================== */
+
+.tileEditing {
+  cursor: default;
+}
+
+.tileEditing:hover {
+  background-color: #161b22;
+}
+
+.tileEditing .tileUsernameContainer,
+.tileUsernameContainer:has(.inlineInput) {
+  transform: none;
 }
 
 .inlineInput {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
-  color: #fff;
+  color: #ffffff;
   font-size: 14px;
-  padding: 4px 8px;
+  padding: 6px 10px;
+  height: 32px;
+  box-sizing: border-box;
   outline: none;
   width: 100%;
+  transition: border-color 0.2s;
 }
 
 .inlineInput:focus {
@@ -615,28 +739,215 @@
 
 .inlineActions {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-left: auto;
-  padding-left: 8px;
+  flex-shrink: 0;
 }
 
 .inlineSaveBtn {
   background: #10b981;
   border: none;
-  color: white;
-  padding: 4px 12px;
+  color: #ffffff;
+  padding: 0 14px;
+  height: 32px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s;
+}
+
+.inlineSaveBtn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.inlineSaveBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .inlineCancelBtn {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: #e2e8f0;
-  padding: 4px 12px;
+  padding: 0 14px;
+  height: 32px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.inlineCancelBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ==========================================================================
+   Profile Inline Edit (Sidebar)
+   ========================================================================== */
+
+.navItemEditing {
+  background-color: #1a202c !important;
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  cursor: default !important;
+  padding: 6px 8px !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  box-sizing: border-box;
+}
+
+.profileIconContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.profileIconContainer .profileIcon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  margin-right: 0;
+}
+
+.profileIconContainer .profileIconText {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.profileIconEditable {
+  cursor: pointer;
+  border: 1.5px dashed rgba(255, 255, 255, 0.45);
+  position: relative;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.profileIconEditable:hover,
+.profileIconDragging {
+  border-color: #818cf8;
+  filter: brightness(1.2);
+}
+
+.profileIconOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(1px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  color: #ffffff;
+  border-radius: 5px;
+  pointer-events: none;
+}
+
+.profileIconEditable:hover .profileIconOverlay,
+.profileIconDragging .profileIconOverlay {
+  opacity: 1;
+}
+
+.profileIconRemoveBtn {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ef4444;
+  color: #ffffff;
+  border: 1px solid #11141d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  z-index: 10;
+  transition: transform 0.15s ease;
+}
+
+.profileIconRemoveBtn:hover {
+  transform: scale(1.15);
+  background: #dc2626;
+}
+
+.profileInlineInput {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 13px;
+  padding: 4px 8px;
+  height: 28px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.profileInlineInput:focus {
+  border-color: #818cf8;
+}
+
+.profileInlineActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.profileSaveBtn {
+  background: #10b981;
+  border: none;
+  color: #ffffff;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.profileSaveBtn:hover {
+  opacity: 0.9;
+}
+
+.profileCancelBtn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #8e98a8;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.profileCancelBtn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.3);
 }

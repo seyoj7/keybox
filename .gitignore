@@ -1,4 +1,5 @@
 .next
-database
+database/
 node_modules
 next-env.d.ts
+__pycache__/

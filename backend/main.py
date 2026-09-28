@@ -42,6 +42,7 @@ class EntryRequest(BaseModel):
     username: str
     password: str
     profile: str = "Default"
+    icon: Optional[str] = None
 
 class GeneratePasswordRequest(BaseModel):
     length: int = 16
@@ -126,7 +127,7 @@ def get_entry(entry_id: int):
 @app.post("/api/entries")
 def add_entry(req: EntryRequest):
     vault = _get_vault()
-    entry_id = vault.add_entry(req.website, req.username, req.password, req.profile)
+    entry_id = vault.add_entry(req.website, req.username, req.password, req.profile, req.icon)
     return {"id": entry_id, "status": "created"}
 
 
@@ -134,7 +135,7 @@ def add_entry(req: EntryRequest):
 def update_entry(entry_id: int, req: EntryRequest):
     vault = _get_vault()
     try:
-        vault.update_entry(entry_id, req.website, req.username, req.password, req.profile)
+        vault.update_entry(entry_id, req.website, req.username, req.password, req.profile, req.icon)
         return {"status": "updated"}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -161,4 +162,4 @@ def gen_password(req: GeneratePasswordRequest):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
