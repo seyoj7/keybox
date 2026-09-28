@@ -2,7 +2,10 @@ import sqlite3
 import os
 from datetime import datetime
 
-DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'database')
+DB_DIR = os.environ.get(
+    'KEYBOX_DATA_DIR',
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), 'database')
+)
 os.makedirs(DB_DIR, exist_ok=True)
 DB_PATH = os.path.join(DB_DIR, 'keybox.db')
 

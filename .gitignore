@@ -3,3 +3,6 @@ database/
 node_modules
 next-env.d.ts
 __pycache__/
+dist2/
+dist-backend/
+build/

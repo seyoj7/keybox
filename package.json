@@ -2,13 +2,15 @@
   "name": "keybox",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "next dev",
     "dev:backend": "cd backend && python main.py",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:windows": "npm run build && electron-builder --win"
   },
   "dependencies": {
     "lucide-react": "^1.48.0",
@@ -24,8 +26,65 @@
     "@types/react-dom": "^19",
     "@types/three": "^0.186.0",
     "concurrently": "^10.0.5",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
     "eslint": "^9",
     "eslint-config-next": "16.3.6",
+    "sharp": "^0.35.5",
     "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.keybox.passwordmanager",
+    "productName": "Keybox",
+    "directories": {
+      "output": "dist2"
+    },
+    "files": [
+      "electron/**",
+      "!node_modules/**",
+      "!.next/**",
+      "!backend/**",
+      "!app/**",
+      "!public/**",
+      "!dist-backend/**",
+      "!build/**",
+      "!database/**"
+    ],
+    "afterPack": "electron/afterPack.js",
+    "asar": true,
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "app",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": ".next/static",
+        "to": "app/.next/static"
+      },
+      {
+        "from": "public",
+        "to": "app/public"
+      },
+      {
+        "from": "dist-backend/keybox-backend.exe",
+        "to": "keybox-backend.exe"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/logo.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Keybox",
+      "artifactName": "Keybox Setup ${version}.${ext}"
+    }
   }
 }

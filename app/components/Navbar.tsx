@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Minus, Square, X } from "lucide-react";
 import styles from "./Navbar.module.css";
 
@@ -9,20 +9,57 @@ interface NavbarProps {
   onLockVault?: () => void;
 }
 
+// Access the Electron API exposed via preload (undefined in browser)
+const electronAPI = typeof window !== "undefined"
+  ? (window as unknown as { electron?: {
+      minimize: () => void;
+      maximize: () => void;
+      close: () => void;
+      isMaximized: () => Promise<boolean>;
+    } }).electron
+  : undefined;
+
 export const Navbar: React.FC<NavbarProps> = ({
   isUnlocked = false,
   onLockVault,
 }) => {
   const [isMaximized, setIsMaximized] = useState(false);
 
+  // Sync maximized state when the window resizes
+  useEffect(() => {
+    if (!electronAPI) return;
+
+    const syncMaximized = async () => {
+      const maximized = await electronAPI.isMaximized();
+      setIsMaximized(maximized);
+    };
+
+    window.addEventListener("resize", syncMaximized);
+    return () => window.removeEventListener("resize", syncMaximized);
+  }, []);
+
+  const handleMinimize = useCallback(() => {
+    electronAPI?.minimize();
+  }, []);
+
   const handleToggleMaximize = useCallback(() => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-      setIsMaximized(true);
+    if (electronAPI) {
+      electronAPI.maximize();
+      setIsMaximized((prev) => !prev);
     } else {
-      document.exitFullscreen?.().catch(() => {});
-      setIsMaximized(false);
+      // Fallback for browser
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+        setIsMaximized(true);
+      } else {
+        document.exitFullscreen?.().catch(() => {});
+        setIsMaximized(false);
+      }
     }
+  }, []);
+
+  const handleClose = useCallback(() => {
+    electronAPI?.close();
   }, []);
 
   return (
@@ -57,6 +94,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Minimize */}
         <button
+          onClick={handleMinimize}
           aria-label="Minimize"
           title="Minimize"
           className={styles.windowButton}
@@ -76,6 +114,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Close */}
         <button
+          onClick={handleClose}
           aria-label="Close"
           title="Close"
           className={`${styles.windowButton} ${styles.closeButton}`}

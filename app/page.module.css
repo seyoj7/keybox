@@ -4,18 +4,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #020408;
-  padding: 20px;
+  background-color: #090c13;
+  padding: 0;
 }
 
 .mainFrame {
   width: 100%;
-  max-width: 1020px;
-  min-height: 680px;
+  min-height: 100vh;
   background-color: #090c13;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.8);
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
   position: relative;
   overflow: hidden;
   display: flex;
