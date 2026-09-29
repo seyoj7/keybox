@@ -37,7 +37,7 @@
     "appId": "com.keybox.passwordmanager",
     "productName": "Keybox",
     "directories": {
-      "output": "dist2"
+      "output": "dist"
     },
     "files": [
       "electron/**",
