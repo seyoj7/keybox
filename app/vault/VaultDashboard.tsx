@@ -90,6 +90,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
   const [holdingProfileName, setHoldingProfileName] = useState<string | null>(null);
   const [isDeletingProfileName, setIsDeletingProfileName] = useState<string | null>(null);
+  const [flashingPasswordId, setFlashingPasswordId] = useState<number | null>(null);
 
   // Fetch entries from backend on mount
   useEffect(() => {
@@ -900,7 +901,24 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
                     </div>
 
                     <div className={styles.tilePasswordContainer}>
-                      <span className={styles.tilePasswordText}>
+                      <span 
+                        className={styles.tilePasswordText}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (visiblePasswords[item.id] && decryptedPasswords[item.id]) {
+                            navigator.clipboard.writeText(decryptedPasswords[item.id]);
+                            setFlashingPasswordId(item.id);
+                            setTimeout(() => {
+                              setFlashingPasswordId((prev) => (prev === item.id ? null : prev));
+                            }, 200);
+                          }
+                        }}
+                        style={{ 
+                          cursor: visiblePasswords[item.id] ? 'pointer' : 'default',
+                          opacity: flashingPasswordId === item.id ? 0.35 : undefined
+                        }}
+                        title={visiblePasswords[item.id] ? "Click to copy password" : ""}
+                      >
                         {visiblePasswords[item.id] ? (decryptedPasswords[item.id] || '••••••••') : '••••••••'}
                       </span>
                       <button
