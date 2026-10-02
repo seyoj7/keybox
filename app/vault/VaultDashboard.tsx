@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import styles from './VaultDashboard.module.css';
 import { Navbar } from '../components/Navbar';
+import { SettingsPage } from '../settings/SettingsPage';
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ async function fetchEntryDetails(entryId: number): Promise<VaultEntry> {
 
 export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) => {
   const [inlineEditId, setInlineEditId] = useState<number | null>(null);
+  const [activeView, setActiveView] = useState<'vault' | 'settings'>('vault');
   const [inlineEditData, setInlineEditData] = useState<{
     website: string;
     username: string;
@@ -772,10 +774,11 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
             return (
               <div
                 key={profile.name + index}
-                className={`${styles.navItem} ${selectedProfile?.name === profile.name ? styles.active : ''}`}
+                className={`${styles.navItem} ${selectedProfile?.name === profile.name && activeView === 'vault' ? styles.active : ''}`}
                 onClick={() => {
                   setSelectedProfile(profile);
                   setInlineEditId(null);
+                  setActiveView('vault');
                 }}
               >
                 <div
@@ -824,7 +827,10 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
           })}
         </nav>
 
-        <div className={styles.settings}>
+        <div 
+          className={`${styles.settings} ${activeView === 'settings' ? styles.active : ''}`}
+          onClick={() => setActiveView('settings')}
+        >
           <Settings className={styles.navIcon} />
           <span>Settings</span>
         </div>
@@ -832,9 +838,12 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
 
       {/* Main Content */}
       <main className={styles.main}>
-        <>
-          {/* Top Header */}
-          <header className={styles.header}>
+        {activeView === 'settings' ? (
+          <SettingsPage onLockVault={onLockVault} />
+        ) : (
+          <>
+            {/* Top Header */}
+            <header className={styles.header}>
             <div className={styles.headerLeftGroup}>
               <div className={styles.searchBar}>
                 <Search className={styles.searchIcon} />
@@ -966,6 +975,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
             )}
           </div>
         </>
+        )}
       </main>
     </div>
   );

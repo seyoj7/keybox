@@ -37,6 +37,9 @@ class ChangePasswordRequest(BaseModel):
     old_password: str
     new_password: str
 
+class DbLocationRequest(BaseModel):
+    new_path: str
+
 class EntryRequest(BaseModel):
     website: str
     username: str
@@ -159,6 +162,23 @@ def gen_password(req: GeneratePasswordRequest):
         use_special=req.use_special,
     )
     return {"password": pwd}
+
+
+@app.get("/api/db-location")
+def get_db_location():
+    import database
+    return {"path": database.DB_PATH}
+
+
+@app.post("/api/db-location")
+def set_db_location(req: DbLocationRequest):
+    import database
+    try:
+        database.change_db_location(req.new_path)
+        return {"status": "success", "path": database.DB_PATH}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 if __name__ == "__main__":

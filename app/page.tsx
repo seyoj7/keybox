@@ -81,7 +81,6 @@ export default function Home() {
         } else {
           await unlockVault(password);
         }
-        localStorage.setItem("cached_master_password", password);
         setIsUnlocked(true);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "An error occurred";
@@ -136,14 +135,11 @@ export default function Home() {
         }
       });
 
-      // Once verified by the OS, unlock the backend using the cached password
-      const cachedPassword = localStorage.getItem("cached_master_password");
-      if (cachedPassword) {
-        await unlockVault(cachedPassword);
-        setIsUnlocked(true);
-      } else {
-        throw new Error("Please unlock with your master password at least once to enable Windows Hello.");
-      }
+      // In a production environment, Windows Hello (WebAuthn) should use the PRF extension 
+      // to derive a key to decrypt the vault, rather than caching the master password.
+      // Since caching the master password in plain text is a security risk, 
+      // this feature is disabled until PRF is implemented.
+      throw new Error("Windows Hello is currently disabled for security. Please use your master password.");
     } catch (err: any) {
       console.error(err);
       if (err.name === "NotAllowedError") {
@@ -261,9 +257,9 @@ export default function Home() {
               type="submit"
               size="lg"
               radius={14}
-              tint="#818cf8"
+              tint="var(--accent-primary)"
               tintOpacity={1}
-              textColor="#0b0f1a"
+              textColor="var(--accent-btn-text)"
               lineColor="#ffffff"
               baseColor="#6366f1"
               intensity={1}
@@ -294,10 +290,10 @@ export default function Home() {
             onClick={handleOpenHello}
             size="lg"
             radius={16}
-            tint="#101520"
-            tintOpacity={0.65}
+            tint="var(--bg-surface)"
+            tintOpacity={0.8}
             blur={14}
-            textColor="#ffffff"
+            textColor="var(--text-main)"
             lineColor="#818cf8"
             baseColor="#263147"
             intensity={1.1}

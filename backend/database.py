@@ -1,13 +1,52 @@
 import sqlite3
 import os
+import json
+import shutil
 from datetime import datetime
 
-DB_DIR = os.environ.get(
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.json')
+
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def save_config(config):
+    with open(CONFIG_FILE, 'w') as f:
+        json.dump(config, f)
+
+config = load_config()
+
+DB_DIR = config.get('db_dir', os.environ.get(
     'KEYBOX_DATA_DIR',
     os.path.join(os.path.dirname(os.path.dirname(__file__)), 'database')
-)
+))
 os.makedirs(DB_DIR, exist_ok=True)
 DB_PATH = os.path.join(DB_DIR, 'keybox.db')
+
+def change_db_location(new_dir: str):
+    global DB_DIR, DB_PATH
+    new_dir = os.path.abspath(new_dir)
+    os.makedirs(new_dir, exist_ok=True)
+    new_db_path = os.path.join(new_dir, 'keybox.db')
+    
+    if os.path.exists(DB_PATH) and DB_PATH != new_db_path:
+        if not os.path.exists(new_db_path):
+            shutil.copy2(DB_PATH, new_db_path)
+            # Remove old db if copy was successful
+            os.remove(DB_PATH)
+    
+    DB_DIR = new_dir
+    DB_PATH = new_db_path
+    
+    cfg = load_config()
+    cfg['db_dir'] = new_dir
+    save_config(cfg)
+
 
 def get_connection():
     return sqlite3.connect(DB_PATH)
