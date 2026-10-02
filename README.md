@@ -1,36 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Keybox
 
-## Getting Started
+Keybox is a highly secure, completely local password manager engineered with a robust system architecture to guarantee maximum data protection. It ensures your credentials remain firmly under your control, leveraging state-of-the-art cryptographic standards and an offline-first, zero-trust design.
 
-First, run the development server:
+## ✨ Features
+
+- **Zero-Knowledge Architecture:** Your master password is never stored or cached anywhere. It is securely hashed using Argon2 in memory during your active session.
+- **Robust Encryption:** All your passwords and entries are encrypted using industry-standard ChaCha20-Poly1305 authenticated encryption.
+- **Profiles:** Organize your accounts and passwords into distinct profiles (e.g., Work, Personal) with customizable icons and colors.
+- **Customizable Database Location:** Keep your SQLite database wherever you want on your local system, making backups and synchronization through cloud drives (like OneDrive or Dropbox) easy.
+- **Standalone Desktop Environment:** Packaged securely as a standalone application using Electron, minimizing external dependencies and attack surfaces.
+- **Decoupled Architecture:** Employs a strict separation of concerns with a Next.js static frontend interacting with a Python-based cryptographic backend.
+
+## 🚀 Tech Stack
+
+- **Frontend:** Next.js (App Router), React, TypeScript, CSS Modules
+- **Backend:** Python, FastAPI, SQLite, Cryptography (ChaCha20, Argon2)
+- **Desktop Wrapper:** Electron, electron-builder
+
+## 🛠️ Getting Started
+
+### Prerequisites
+
+You will need the following installed on your machine:
+- [Node.js](https://nodejs.org/) (v18+)
+- [Python](https://www.python.org/) (3.10+)
+
+### Installation
+
+1. **Clone the repository** (if applicable) and navigate to the project directory:
+   ```bash
+   cd keybox
+   ```
+
+2. **Install Node dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Set up the Python backend:**
+   ```bash
+   cd backend
+   python -m venv venv
+   # On Windows:
+   venv\Scripts\activate
+   # On macOS/Linux:
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+### Running Locally (Development Mode)
+
+Start the Next.js frontend and the FastAPI backend concurrently:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Packaging for Desktop
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+To build the standalone Windows `.exe` application:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build:windows
+```
+This script will:
+1. Compile the Python backend into a standalone executable using PyInstaller.
+2. Build the Next.js static frontend.
+3. Package everything into a frameless Windows installer via `electron-builder`.
 
-## Learn More
+Your installer will be located in the `dist/app/` folder.
 
-To learn more about Next.js, take a look at the following resources:
+## 🔒 Security & Architecture
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Air-Gapped Operation:** Keybox makes no network calls to external servers. Your encrypted vault is confined strictly to your local machine, eliminating the risk of remote data breaches.
+- **Memory Safety & Ephemeral Keys:** The master password and derived cryptographic keys are held entirely in volatile application memory (RAM). They are immediately zeroed out and purged when you lock the vault or exit the application.
+- **Authenticated Encryption:** Using a combination of random salts, nonces, and the Poly1305 authenticator tag guarantees that your database cannot be silently modified or tampered with by malicious actors.
+- **Multi-layered Key Derivation:** Master passwords are run through Argon2, a memory-hard key derivation function, making brute-force and GPU-based dictionary attacks practically infeasible.
+- **Isolated Backend:** Core cryptographic logic and database operations are executed in a separate Python process, reducing the risk of frontend vulnerabilities compromising the vault.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🗄️ Database Management
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+By default, the SQLite database (`keybox.db`) is stored in the `/database` folder in the project directory. 
+You can easily move this database to another secure location on your system via the **Settings -> Database Location** menu inside the app. The backend will seamlessly migrate your data and remember the new location moving forward.
