@@ -27,7 +27,8 @@ exports.default = async function afterPack(context) {
 
   const src = path.join(
     context.packager.projectDir,
-    ".next",
+    "dist",
+    "next",
     "standalone",
     "node_modules"
   );

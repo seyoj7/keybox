@@ -34,6 +34,7 @@
   height: 60px;
   padding: 0 24px;
   box-sizing: border-box;
+  -webkit-app-region: drag;
 }
 
 .brandLogoContainer {
@@ -71,7 +72,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 12px;
+  padding: 0 4px;
   margin-top: 8px;
   margin-bottom: 8px;
 }
@@ -250,7 +251,7 @@
 .settings {
   display: flex;
   align-items: center;
-  padding: 10px 12px;
+  padding: 10px 4px;
   margin: 0 16px;
   color: #8e98a8;
   font-size: 14px;
@@ -290,6 +291,7 @@
   height: 60px;
   padding: 0 16px 0 32px;
   gap: 8px;
+  -webkit-app-region: drag;
 }
 
 .headerLeftGroup {
@@ -305,11 +307,12 @@
   min-width: 0;
   background-color: #161b22;
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
-  padding: 0 16px;
-  height: 44px;
+  padding: 0 12px;
+  height: 32px;
+  -webkit-app-region: no-drag;
 }
 
 .searchIcon {
@@ -344,17 +347,18 @@
   background-color: #818cf8;
   color: #0b0f1a;
   border: none;
-  border-radius: 12px;
-  padding: 0 20px;
-  height: 44px;
-  font-size: 14px;
+  border-radius: 8px;
+  padding: 0 16px;
+  height: 32px;
+  font-size: 13px;
   font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
   transition: opacity 0.2s;
   white-space: nowrap;
+  -webkit-app-region: no-drag;
 }
 
 .addButton:hover {

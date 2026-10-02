@@ -14,11 +14,11 @@ const resourcesPath = isProd
 
 const backendExePath = isProd
   ? path.join(resourcesPath, "keybox-backend.exe")
-  : path.join(resourcesPath, "dist-backend", "keybox-backend.exe");
+  : path.join(resourcesPath, "dist", "backend", "keybox-backend.exe");
 
 const nextAppDir = isProd
   ? path.join(resourcesPath, "app")
-  : path.join(resourcesPath, ".next", "standalone");
+  : path.join(resourcesPath, "dist", "next", "standalone");
 
 // ── User data directory for the database ──────────────────────
 // When packaged, the backend should store its DB in a persistent

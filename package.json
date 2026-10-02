@@ -7,7 +7,9 @@
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "next dev",
     "dev:backend": "cd backend && python main.py",
-    "build": "next build",
+    "build:backend": "cd backend && pyinstaller --onefile --windowed --distpath ../dist/backend --workpath ../dist/pyinstaller-build --specpath ../dist --name keybox-backend main.py",
+    "build:frontend": "next build",
+    "build": "npm run build:backend && npm run build:frontend",
     "start": "next start",
     "lint": "eslint",
     "build:windows": "npm run build && electron-builder --win"
@@ -37,7 +39,7 @@
     "appId": "com.keybox.passwordmanager",
     "productName": "Keybox",
     "directories": {
-      "output": "dist"
+      "output": "dist/app"
     },
     "files": [
       "electron/**",
@@ -48,28 +50,29 @@
       "!public/**",
       "!dist-backend/**",
       "!build/**",
+      "!dist/**",
       "!database/**"
     ],
     "afterPack": "electron/afterPack.js",
     "asar": true,
     "extraResources": [
       {
-        "from": ".next/standalone",
+        "from": "dist/next/standalone",
         "to": "app",
         "filter": [
           "**/*"
         ]
       },
       {
-        "from": ".next/static",
-        "to": "app/.next/static"
+        "from": "dist/next/static",
+        "to": "app/dist/next/static"
       },
       {
         "from": "public",
         "to": "app/public"
       },
       {
-        "from": "dist-backend/keybox-backend.exe",
+        "from": "dist/backend/keybox-backend.exe",
         "to": "keybox-backend.exe"
       }
     ],
