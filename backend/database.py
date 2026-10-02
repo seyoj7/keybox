@@ -2,6 +2,7 @@ import sqlite3
 import os
 import json
 import shutil
+import contextlib
 from datetime import datetime
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.json')
@@ -37,8 +38,22 @@ def change_db_location(new_dir: str):
     if os.path.exists(DB_PATH) and DB_PATH != new_db_path:
         if not os.path.exists(new_db_path):
             shutil.copy2(DB_PATH, new_db_path)
-            # Remove old db if copy was successful
             os.remove(DB_PATH)
+            
+            # Also move/delete WAL and SHM files if they exist to prevent corruption and leave no trace
+            for suffix in ['-wal', '-shm', '-journal']:
+                old_ext = DB_PATH + suffix
+                new_ext = new_db_path + suffix
+                if os.path.exists(old_ext):
+                    shutil.copy2(old_ext, new_ext)
+                    os.remove(old_ext)
+        else:
+            # If the target already exists, we should still clean up the old one as requested
+            os.remove(DB_PATH)
+            for suffix in ['-wal', '-shm', '-journal']:
+                old_ext = DB_PATH + suffix
+                if os.path.exists(old_ext):
+                    os.remove(old_ext)
     
     DB_DIR = new_dir
     DB_PATH = new_db_path
@@ -48,8 +63,14 @@ def change_db_location(new_dir: str):
     save_config(cfg)
 
 
+@contextlib.contextmanager
 def get_connection():
-    return sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 def init_db():
     with get_connection() as conn:
