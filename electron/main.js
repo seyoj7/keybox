@@ -1,5 +1,6 @@
 const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const { spawn } = require("child_process");
+const fs = require("fs");
 const path = require("path");
 const net = require("net");
 
@@ -24,6 +25,82 @@ const nextAppDir = isProd
 // When packaged, the backend should store its DB in a persistent
 // user-data folder, not next to the exe (which is read-only).
 const userDataPath = app.getPath("userData");
+const configPath = path.join(userDataPath, "config.json");
+
+function readDatabaseConfig() {
+  if (!fs.existsSync(configPath)) return {};
+
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    if (!config || typeof config !== "object" || Array.isArray(config)) {
+      throw new Error("The saved Keybox configuration is not a JSON object.");
+    }
+    return config;
+  } catch (err) {
+    throw new Error(`Could not read Keybox configuration at ${configPath}: ${err.message}`);
+  }
+}
+
+function saveDatabaseConfig(config) {
+  fs.mkdirSync(userDataPath, { recursive: true });
+  const temporaryPath = `${configPath}.tmp`;
+  fs.writeFileSync(temporaryPath, JSON.stringify(config, null, 2), "utf8");
+  fs.renameSync(temporaryPath, configPath);
+}
+
+async function locateMissingDatabaseDirectory() {
+  if (!isProd) return;
+
+  const config = readDatabaseConfig();
+  const savedDir = config.db_dir;
+  if (typeof savedDir !== "string" || !savedDir || fs.existsSync(savedDir)) return;
+
+  const choice = await dialog.showMessageBox({
+    type: "warning",
+    title: "Keybox database folder not found",
+    message: `The saved database folder could not be found:\n${savedDir}`,
+    detail: "Locate your existing keybox.db, or choose a folder where Keybox can create a new database.",
+    buttons: ["Locate existing database", "Choose folder for a new database", "Quit"],
+    defaultId: 0,
+    cancelId: 2,
+  });
+
+  let selectedDir;
+  if (choice.response === 0) {
+    const result = await dialog.showOpenDialog({
+      title: "Locate your Keybox database",
+      buttonLabel: "Use this database",
+      properties: ["openFile"],
+      filters: [{ name: "Keybox database", extensions: ["db"] }],
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      throw new Error("No database was selected. Keybox did not change your saved database location.");
+    }
+
+    const selectedDatabase = result.filePaths[0];
+    if (path.basename(selectedDatabase).toLowerCase() !== "keybox.db") {
+      throw new Error("Select the Keybox database file named keybox.db.");
+    }
+    selectedDir = path.dirname(selectedDatabase);
+  } else if (choice.response === 1) {
+    const result = await dialog.showOpenDialog({
+      title: "Choose a folder for your new Keybox database",
+      buttonLabel: "Use this folder",
+      properties: ["openDirectory", "createDirectory"],
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      throw new Error("No folder was selected. Keybox did not change your saved database location.");
+    }
+    selectedDir = result.filePaths[0];
+  } else {
+    throw new Error(`The saved database folder could not be found: ${savedDir}.`);
+  }
+
+  config.db_dir = selectedDir;
+  saveDatabaseConfig(config);
+}
 
 // ── Child-process handles ────────────────────────────────────
 let backendProcess = null;
@@ -67,6 +144,7 @@ function startBackend() {
     // Tell the backend where to store its database when packaged
     if (isProd) {
       env.KEYBOX_DATA_DIR = userDataPath;
+      env.KEYBOX_CONFIG_PATH = configPath;
     }
 
     backendProcess = spawn(backendExePath, [], {
@@ -222,6 +300,8 @@ app.on("before-quit", () => {
 
 app.whenReady().then(async () => {
   try {
+    fs.mkdirSync(userDataPath, { recursive: true });
+    await locateMissingDatabaseDirectory();
     await startBackend();
     console.log("[Electron] Backend is ready on :8000");
 

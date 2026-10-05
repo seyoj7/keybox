@@ -40,13 +40,13 @@ def derive_key(master_password: str, salt: bytes) -> bytes:
         type=argon2.low_level.Type.ID
     )
 
-def encrypt(key: bytes, plaintext: bytes, associated_data: bytes = None) -> tuple[bytes, bytes]:
+def encrypt(key: bytes, plaintext: bytes, associated_data: bytes | None = None) -> tuple[bytes, bytes]:
     aesgcm = AESGCM(key)
     nonce = os.urandom(12)  # 96-bit nonce for GCM
     # Encrypt appends the 16-byte auth tag to the ciphertext
     ciphertext = aesgcm.encrypt(nonce, plaintext, associated_data)
     return ciphertext, nonce
 
-def decrypt(key: bytes, nonce: bytes, ciphertext: bytes, associated_data: bytes = None) -> bytes:
+def decrypt(key: bytes, nonce: bytes, ciphertext: bytes, associated_data: bytes | None = None) -> bytes:
     aesgcm = AESGCM(key)
     return aesgcm.decrypt(nonce, ciphertext, associated_data)

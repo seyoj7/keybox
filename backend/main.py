@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from auth import unlock_vault, is_vault_initialized, setup_vault, change_master_password
-from vault import Vault
+from vault_database import Vault, init_db
 from password_generator import generate_password
 
 app = FastAPI()
@@ -166,13 +166,13 @@ def gen_password(req: GeneratePasswordRequest):
 
 @app.get("/api/db-location")
 def get_db_location():
-    import database
+    import vault_database as database
     return {"path": database.DB_PATH}
 
 
 @app.post("/api/db-location")
 def set_db_location(req: DbLocationRequest):
-    import database
+    import vault_database as database
     try:
         database.change_db_location(req.new_path)
         return {"status": "success", "path": database.DB_PATH}
@@ -182,4 +182,6 @@ def set_db_location(req: DbLocationRequest):
 
 
 if __name__ == "__main__":
+    # Create the database at the configured location if this is a fresh install.
+    init_db()
     uvicorn.run(app, host="127.0.0.1", port=8000, reload=False)

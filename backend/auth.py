@@ -1,5 +1,5 @@
 import json
-import database
+import vault_database as database
 from password_generator import generate_salt, derive_key, encrypt, decrypt
 from cryptography.exceptions import InvalidTag
 
@@ -44,13 +44,11 @@ def unlock_vault(master_password: str) -> bytes:
     return key
 
 def change_master_password(old_password: str, new_password: str):
-    from vault import Vault
-    
     # 1. Verify old password and get the old key
     old_key = unlock_vault(old_password)
     
     # 2. Extract all full data entries before changing keys
-    old_vault = Vault(old_key)
+    old_vault = database.Vault(old_key)
     entries_meta = old_vault.list_entries()
     
     full_entries = []

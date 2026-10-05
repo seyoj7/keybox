@@ -197,7 +197,7 @@ export default function Home() {
           <h1 className={styles.mainTitle}>
             Keep your passwords
             <br />
-            <span className={styles.titleHighlight}>Safe & Secure.</span>
+            <span className={styles.titleHighlight}>Encrypted.</span>
           </h1>
 
           <p className={styles.subtitle}>
