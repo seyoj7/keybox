@@ -8,6 +8,7 @@ import { Footer } from "./components/Footer";
 import SideRays from "./components/SideRays";
 import SpecularButton from "./components/SpecularButton";
 import { VaultDashboard } from "./vault/VaultDashboard";
+import { apiFetch } from "./lib/apiFetch";
 import styles from "./page.module.css";
 
 // ── API helpers ─────────────────────────────────────────────
@@ -25,7 +26,7 @@ async function readApiResponse(res: Response): Promise<Record<string, unknown>> 
 }
 
 async function fetchVaultStatus(): Promise<{ initialized: boolean; databaseFound: boolean } | null> {
-  const res = await fetch("/api/status");
+  const res = await apiFetch("/api/status");
   if (!res.ok) return null;
   const data = await readApiResponse(res);
   return {
@@ -39,7 +40,7 @@ async function fetchVaultStatus(): Promise<{ initialized: boolean; databaseFound
 }
 
 async function initializeVault(password: string): Promise<void> {
-  const res = await fetch("/api/init", {
+  const res = await apiFetch("/api/init", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ password }),
@@ -49,7 +50,7 @@ async function initializeVault(password: string): Promise<void> {
 }
 
 async function unlockVault(password: string): Promise<void> {
-  const res = await fetch("/api/unlock", {
+  const res = await apiFetch("/api/unlock", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ password }),
@@ -59,7 +60,7 @@ async function unlockVault(password: string): Promise<void> {
 }
 
 async function lockVault(): Promise<void> {
-  await fetch("/api/lock", { method: "POST" });
+  await apiFetch("/api/lock", { method: "POST" });
 }
 
 // ── Component ───────────────────────────────────────────────
@@ -95,7 +96,7 @@ export default function Home() {
     try {
       const selectedPath = await electronAPI?.locateDatabase?.();
       if (electronAPI?.locateDatabase && !selectedPath) return;
-      const res = await fetch("/api/db-location/locate", {
+      const res = await apiFetch("/api/db-location/locate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(selectedPath ? { path: selectedPath } : {}),

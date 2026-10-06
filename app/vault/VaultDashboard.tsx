@@ -6,6 +6,7 @@ import {
 import styles from './VaultDashboard.module.css';
 import { Navbar } from '../components/Navbar';
 import { SettingsPage } from '../settings/SettingsPage';
+import { apiFetch } from '../lib/apiFetch';
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -50,14 +51,14 @@ interface VaultDashboardProps {
 // ── API helpers ─────────────────────────────────────────────
 
 async function fetchEntries(): Promise<VaultEntry[]> {
-  const res = await fetch('/api/entries');
+  const res = await apiFetch('/api/entries');
   if (res.status === 401) throw new Error('VAULT_LOCKED');
   if (!res.ok) throw new Error('Failed to fetch entries');
   return res.json();
 }
 
 async function fetchEntryDetails(entryId: number): Promise<VaultEntry> {
-  const res = await fetch(`/api/entries/${entryId}`);
+  const res = await apiFetch(`/api/entries/${entryId}`);
   if (!res.ok) throw new Error('Failed to fetch entry');
   return res.json();
 }
@@ -144,7 +145,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
       setHoldingEntryId(null);
       holdTimerRef.current = null;
       try {
-        const res = await fetch(`/api/entries/${entryId}`, { method: 'DELETE' });
+        const res = await apiFetch(`/api/entries/${entryId}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Failed to delete entry');
         const updatedEntries = await fetchEntries();
         setEntries(updatedEntries);
@@ -240,7 +241,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
       try {
         if (profile.accounts.length > 0) {
           await Promise.all(
-            profile.accounts.map(acc => fetch(`/api/entries/${acc.id}`, { method: 'DELETE' }))
+            profile.accounts.map(acc => apiFetch(`/api/entries/${acc.id}`, { method: 'DELETE' }))
           );
         }
 
@@ -477,7 +478,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
       const url = isNew ? '/api/entries' : `/api/entries/${entry.id}`;
       const method = isNew ? 'POST' : 'PUT';
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

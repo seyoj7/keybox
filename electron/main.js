@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Electron's main entry is CommonJS. */
 const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const { spawn } = require("child_process");
+const crypto = require("crypto");
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
@@ -12,14 +13,17 @@ const STARTUP_TIMEOUT_MS = 45_000;
 const isPackaged = app.isPackaged;
 const resourcesPath = isPackaged ? process.resourcesPath : path.resolve(__dirname, "..");
 const backendPath = isPackaged
-  ? path.join(resourcesPath, "keybox-backend.exe")
-  : path.join(resourcesPath, "dist", "backend", "keybox-backend.exe");
+  ? path.join(resourcesPath, "keybox-backend", "keybox-backend.exe")
+  : path.join(resourcesPath, "dist", "backend", "keybox-backend", "keybox-backend.exe");
 const nextAppDir = isPackaged
   ? path.join(resourcesPath, "app")
-  : path.join(resourcesPath, "dist", "next", "standalone");
+  : resourcesPath;
 const serverPath = path.join(nextAppDir, "server.js");
+const nextCliPath = path.join(resourcesPath, "node_modules", "next", "dist", "bin", "next");
+const backendScriptPath = path.join(resourcesPath, "backend", "main.py");
 const userDataPath = app.getPath("userData");
 const configPath = path.join(userDataPath, "config.json");
+const backendToken = crypto.randomBytes(32).toString("hex");
 
 let mainWindow = null;
 let backendProcess = null;
@@ -39,9 +43,9 @@ function logChildOutput(name, child) {
   });
 }
 
-function requestIsReady(url) {
+function requestIsReady(url, headers = {}) {
   return new Promise((resolve) => {
-    const request = http.get(url, (response) => {
+    const request = http.get(url, { headers }, (response) => {
       response.resume();
       resolve(response.statusCode === 200);
     });
@@ -50,7 +54,7 @@ function requestIsReady(url) {
   });
 }
 
-async function waitForService(child, url, label) {
+async function waitForService(child, url, label, headers = {}) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < STARTUP_TIMEOUT_MS) {
     if (child.spawnError) {
@@ -59,7 +63,7 @@ async function waitForService(child, url, label) {
     if (child.exitCode !== null || child.killed) {
       throw new Error(`${label} stopped before it became ready.`);
     }
-    if (await requestIsReady(url)) return;
+    if (await requestIsReady(url, headers)) return;
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   throw new Error(`${label} did not become ready at ${url}.`);
@@ -90,8 +94,11 @@ function startChild(executable, args, options, label) {
 }
 
 async function startBackend() {
-  if (!fs.existsSync(backendPath)) {
+  if (isPackaged && !fs.existsSync(backendPath)) {
     throw new Error(`Backend executable is missing: ${backendPath}`);
+  }
+  if (!isPackaged && !fs.existsSync(backendScriptPath)) {
+    throw new Error(`Backend source is missing: ${backendScriptPath}`);
   }
   fs.mkdirSync(userDataPath, { recursive: true });
 
@@ -100,36 +107,48 @@ async function startBackend() {
     env.KEYBOX_DATA_DIR = userDataPath;
     env.KEYBOX_CONFIG_PATH = configPath;
   }
+  env.KEYBOX_API_TOKEN = backendToken;
 
+  const backendCommand = isPackaged
+    ? backendPath
+    : (process.env.KEYBOX_PYTHON || (process.platform === "win32" ? "python" : "python3"));
+  const backendArgs = isPackaged ? [] : [backendScriptPath];
+  const backendCwd = isPackaged ? resourcesPath : path.join(resourcesPath, "backend");
   backendProcess = startChild(
-    backendPath,
-    [],
-    { cwd: resourcesPath, env },
+    backendCommand,
+    backendArgs,
+    { cwd: backendCwd, env },
     "Backend",
   );
   await waitForService(
     backendProcess,
-    `http://${APP_HOST}:${BACKEND_PORT}/openapi.json`,
+    `http://${APP_HOST}:${BACKEND_PORT}/api/status`,
     "Backend",
+    { "X-Keybox-Token": backendToken },
   );
 }
 
 async function startNextServer() {
-  if (!fs.existsSync(serverPath)) {
-    throw new Error(`Next.js server is missing: ${serverPath}`);
+  const nextEntry = isPackaged ? serverPath : nextCliPath;
+  if (!fs.existsSync(nextEntry)) {
+    throw new Error(`Next.js entry point is missing: ${nextEntry}`);
   }
 
   const env = {
     ...process.env,
     PORT: String(FRONTEND_PORT),
     HOSTNAME: APP_HOST,
-    NODE_ENV: "production",
+    NODE_ENV: isPackaged ? "production" : "development",
   };
-  if (isPackaged) env.ELECTRON_RUN_AS_NODE = "1";
+  env.ELECTRON_RUN_AS_NODE = "1";
+
+  const nextArgs = isPackaged
+    ? [serverPath]
+    : [nextCliPath, "dev", "--hostname", APP_HOST, "--port", String(FRONTEND_PORT)];
 
   nextProcess = startChild(
     process.execPath,
-    [serverPath],
+    nextArgs,
     { cwd: nextAppDir, env },
     "Next.js",
   );
@@ -148,23 +167,76 @@ function publishWindowState() {
   });
 }
 
+function assertTrustedRenderer(event) {
+  const frameUrl = event.senderFrame?.url;
+  if (!frameUrl || new URL(frameUrl).origin !== `http://${APP_HOST}:${FRONTEND_PORT}`) {
+    throw new Error("This operation is only available to the Keybox window.");
+  }
+}
+
 function registerIpcHandlers() {
-  ipcMain.handle("window-minimize", () => {
+  ipcMain.handle("window-minimize", (event) => {
+    assertTrustedRenderer(event);
     mainWindow?.minimize();
   });
-  ipcMain.handle("window-toggle-maximize", () => {
+  ipcMain.handle("window-toggle-maximize", (event) => {
+    assertTrustedRenderer(event);
     if (!mainWindow || mainWindow.isDestroyed()) return false;
     if (mainWindow.isMaximized()) mainWindow.unmaximize();
     else mainWindow.maximize();
     return mainWindow.isMaximized();
   });
-  ipcMain.handle("window-close", () => {
+  ipcMain.handle("window-close", (event) => {
+    assertTrustedRenderer(event);
     mainWindow?.close();
   });
-  ipcMain.handle("window-is-maximized", () =>
-    Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized()),
-  );
-  ipcMain.handle("database-locate", async () => {
+  ipcMain.handle("window-is-maximized", (event) => {
+    assertTrustedRenderer(event);
+    return Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized());
+  });
+  ipcMain.handle("api-request", async (event, request) => {
+    assertTrustedRenderer(event);
+
+    if (!request || typeof request.url !== "string") {
+      throw new Error("Invalid API request.");
+    }
+    const targetUrl = new URL(request.url, `http://${APP_HOST}:${FRONTEND_PORT}`);
+    if (targetUrl.origin !== `http://${APP_HOST}:${FRONTEND_PORT}` || !targetUrl.pathname.startsWith("/api/")) {
+      throw new Error("Only Keybox API routes are allowed.");
+    }
+
+    const options = request.options || {};
+    const method = String(options.method || "GET").toUpperCase();
+    if (!["GET", "POST", "PUT", "DELETE"].includes(method)) {
+      throw new Error("Unsupported API method.");
+    }
+
+    const headers = new Headers(options.headers || {});
+    headers.set("X-Keybox-Token", backendToken);
+    const body = typeof options.body === "string" ? options.body : undefined;
+
+    try {
+      const response = await fetch(`http://${APP_HOST}:${BACKEND_PORT}${targetUrl.pathname}${targetUrl.search}`, {
+        method,
+        headers,
+        body: method === "GET" ? undefined : body,
+      });
+      return {
+        status: response.status,
+        contentType: response.headers.get("content-type") || "",
+        body: await response.text(),
+      };
+    } catch (error) {
+      console.error("[Electron] Backend request failed:", error);
+      return {
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "The local Keybox backend is unavailable." }),
+      };
+    }
+  });
+  ipcMain.handle("database-locate", async (event) => {
+    assertTrustedRenderer(event);
     const result = await dialog.showOpenDialog(mainWindow, {
       title: "Locate your Keybox database",
       buttonLabel: "Use this database",
@@ -207,6 +279,12 @@ function createWindow() {
   mainWindow.webContents.on("did-fail-load", (_event, code, description) => {
     console.error(`[Electron] Page load failed (${code}): ${description}`);
   });
+  mainWindow.webContents.on("will-navigate", (event, targetUrl) => {
+    if (new URL(targetUrl).origin !== `http://${APP_HOST}:${FRONTEND_PORT}`) {
+      event.preventDefault();
+    }
+  });
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   mainWindow.loadURL(`http://${APP_HOST}:${FRONTEND_PORT}`);
 }
 

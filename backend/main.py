@@ -1,22 +1,34 @@
 import uvicorn
 import os
-from fastapi import FastAPI, HTTPException
+import hmac
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
-from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
+from starlette.responses import JSONResponse
 from auth import unlock_vault, is_vault_initialized, setup_vault, change_master_password
 from vault_database import Vault
 from password_generator import generate_password
 
-app = FastAPI()
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+_api_token = os.environ.get("KEYBOX_API_TOKEN")
+_require_api_token = True
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict this
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+@app.middleware("http")
+async def require_keybox_process(request: Request, call_next):
+    if _require_api_token:
+        if not _api_token:
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "The Keybox session is not initialized."},
+            )
+        supplied_token = request.headers.get("x-keybox-token", "")
+        if not hmac.compare_digest(supplied_token, _api_token):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "This local service only accepts requests from Keybox."},
+            )
+    return await call_next(request)
 
 # In-memory session: holds the derived key after unlock
 _session_key: Optional[bytes] = None

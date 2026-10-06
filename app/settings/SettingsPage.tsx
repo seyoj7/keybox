@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from '../components/Navbar';
 import { Modal } from '../components/Modal';
 import styles from './SettingsPage.module.css';
+import { apiFetch } from '../lib/apiFetch';
 
 interface SettingsPageProps {
   onLockVault: () => void;
@@ -40,7 +41,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onLockVault }) => {
   const [newDbLocation, setNewDbLocation] = useState('');
 
   useEffect(() => {
-    fetch('/api/db-location')
+    apiFetch('/api/db-location')
       .then(res => res.json())
       .then(data => {
         if (data.path) {
@@ -75,7 +76,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onLockVault }) => {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/change-password', {
+      const res = await apiFetch('/api/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
@@ -115,7 +116,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onLockVault }) => {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/db-location', {
+      const res = await apiFetch('/api/db-location', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ new_path: newDbLocation }),
