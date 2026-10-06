@@ -3,6 +3,7 @@ import os
 import json
 import shutil
 import contextlib
+import sys
 from collections.abc import Iterator
 from datetime import datetime
 import tempfile
@@ -11,6 +12,22 @@ from typing import Any
 from cryptography.exceptions import InvalidTag
 from password_generator import decrypt, encrypt
 
+def _default_user_data_dir() -> str:
+    """Match Electron's app.getPath('userData') for local backend runs."""
+    if sys.platform == 'win32':
+        base = os.environ.get('APPDATA') or os.path.join(
+            os.path.expanduser('~'), 'AppData', 'Roaming'
+        )
+    elif sys.platform == 'darwin':
+        base = os.path.join(os.path.expanduser('~'), 'Library', 'Application Support')
+    else:
+        base = os.environ.get('XDG_CONFIG_HOME') or os.path.join(
+            os.path.expanduser('~'), '.config'
+        )
+    return os.path.join(base, 'keybox')
+
+
+_DEFAULT_USER_DATA_DIR = _default_user_data_dir()
 CONFIG_FILE = os.environ.get(
     'KEYBOX_CONFIG_PATH',
     os.path.join(os.path.dirname(__file__), 'config.json'),
@@ -20,7 +37,8 @@ def load_config():
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r') as f:
-                return json.load(f)
+                loaded = json.load(f)
+                return loaded if isinstance(loaded, dict) else {}
         except Exception:
             pass
     return {}
@@ -42,12 +60,17 @@ def save_config(config):
 
 config = load_config()
 
-DB_DIR = config.get('db_dir', os.environ.get(
-    'KEYBOX_DATA_DIR',
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), 'database')
-))
-os.makedirs(DB_DIR, exist_ok=True)
+# A saved location takes precedence over the Electron userData directory;
+# localhost uses the same per-user default.
+DB_DIR = config.get('db_dir') or os.environ.get('KEYBOX_DATA_DIR') or _DEFAULT_USER_DATA_DIR
+DB_DIR = os.path.abspath(os.path.expanduser(DB_DIR))
 DB_PATH = os.path.join(DB_DIR, 'keybox.db')
+
+# Record the default too, so a packaged install always has an explicit,
+# persistent database directory in its roaming config.json from first launch.
+if not config.get('db_dir'):
+    config['db_dir'] = DB_DIR
+    save_config(config)
 
 def change_db_location(new_dir: str):
     global DB_DIR, DB_PATH
@@ -90,6 +113,7 @@ def change_db_location(new_dir: str):
 
 @contextlib.contextmanager
 def get_connection() -> Iterator[sqlite3.Connection]:
+    os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     try:
         with conn:
@@ -116,6 +140,38 @@ def init_db():
             )
         """)
         conn.commit()
+
+
+def select_database_file(database_path: str):
+    global DB_DIR, DB_PATH
+    database_path = os.path.abspath(database_path)
+    if os.path.basename(database_path).lower() != 'keybox.db':
+        raise ValueError('Select the Keybox database file named keybox.db.')
+    if not os.path.isfile(database_path):
+        raise ValueError('The selected database file no longer exists.')
+
+    try:
+        with contextlib.closing(sqlite3.connect(database_path)) as conn:
+            integrity = conn.execute('PRAGMA quick_check').fetchone()
+            tables = {
+                row[0]
+                for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+            }
+            if integrity is None or integrity[0] != 'ok':
+                raise ValueError('The selected database failed its integrity check.')
+            if not {'metadata', 'passwords'}.issubset(tables):
+                raise ValueError('The selected database is not a Keybox vault.')
+    except sqlite3.DatabaseError as exc:
+        raise ValueError('The selected file is not a readable Keybox database.') from exc
+
+    config_to_save = load_config()
+    config_to_save['db_dir'] = os.path.dirname(database_path)
+    # Persist the selected vault in both development and packaged builds.
+    # Electron points KEYBOX_CONFIG_PATH at %APPDATA%/Keybox/config.json, so
+    # the packaged app remembers this location across launches as well.
+    save_config(config_to_save)
+    DB_PATH = database_path
+    DB_DIR = os.path.dirname(database_path)
 
 def save_metadata(key: str, value: bytes):
     with get_connection() as conn:

@@ -1,10 +1,11 @@
 import uvicorn
+import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from auth import unlock_vault, is_vault_initialized, setup_vault, change_master_password
-from vault_database import Vault, init_db
+from vault_database import Vault
 from password_generator import generate_password
 
 app = FastAPI()
@@ -40,6 +41,9 @@ class ChangePasswordRequest(BaseModel):
 class DbLocationRequest(BaseModel):
     new_path: str
 
+class LocateDatabaseRequest(BaseModel):
+    path: Optional[str] = None
+
 class EntryRequest(BaseModel):
     website: str
     username: str
@@ -58,7 +62,16 @@ class GeneratePasswordRequest(BaseModel):
 
 @app.get("/api/status")
 def get_status():
-    return {"initialized": is_vault_initialized()}
+    import vault_database as database
+
+    database_found = os.path.isfile(database.DB_PATH)
+    if not database_found:
+        return {"initialized": False, "database_found": False}
+    initialized = is_vault_initialized()
+    return {
+        "initialized": initialized,
+        "database_found": database_found,
+    }
 
 
 @app.post("/api/init")
@@ -80,7 +93,7 @@ def unlock(req: AuthRequest):
     global _session_key
     try:
         if not is_vault_initialized():
-            setup_vault(req.password)
+            raise ValueError("Vault is not initialized.")
         _session_key = unlock_vault(req.password)
         return {"status": "success"}
     except ValueError as e:
@@ -180,8 +193,37 @@ def set_db_location(req: DbLocationRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/db-location/locate")
+def locate_database(req: LocateDatabaseRequest = LocateDatabaseRequest()):
+    import vault_database as database
+
+    try:
+        selected_path = req.path
+        if not selected_path:
+            import tkinter as tk
+            from tkinter import filedialog
+
+            picker = tk.Tk()
+            picker.withdraw()
+            picker.attributes('-topmost', True)
+            selected_path = filedialog.askopenfilename(
+                title='Locate your Keybox database',
+                filetypes=[('Keybox database', 'keybox.db'), ('SQLite database', '*.db')],
+            )
+            picker.destroy()
+        if not selected_path:
+            raise HTTPException(status_code=400, detail='No database was selected.')
+
+        database.select_database_file(selected_path)
+        return {"status": "success", "path": database.DB_PATH}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 if __name__ == "__main__":
-    # Create the database at the configured location if this is a fresh install.
-    init_db()
     uvicorn.run(app, host="127.0.0.1", port=8000, reload=False)

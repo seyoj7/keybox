@@ -7,7 +7,7 @@
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "next dev",
     "dev:backend": "cd backend && python main.py",
-    "build:backend": "cd backend && pyinstaller --onefile --windowed --distpath ../dist/backend --workpath ../dist/pyinstaller-build --specpath ../dist --name keybox-backend main.py",
+    "build:backend": "cd backend && pyinstaller --onefile --windowed --exclude-module tkinter --exclude-module PIL --exclude-module numpy --exclude-module matplotlib --distpath ../dist/backend --workpath ../dist/pyinstaller-build --specpath ../dist --name keybox-backend main.py",
     "build:frontend": "next build",
     "build": "npm run build:backend && npm run build:frontend",
     "start": "next start",
@@ -38,6 +38,10 @@
   "build": {
     "appId": "com.keybox.passwordmanager",
     "productName": "Keybox",
+    "compression": "maximum",
+    "electronLanguages": [
+      "en-US"
+    ],
     "directories": {
       "output": "dist/app"
     },

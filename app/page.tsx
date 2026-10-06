@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Lock, Eye, EyeOff, ArrowRight, Fingerprint, CheckCircle2 } from "lucide-react";
+import { Lock, Eye, EyeOff, ArrowRight, Fingerprint } from "lucide-react";
 import { Navbar } from "./components/Navbar";
 import { Footer } from "./components/Footer";
 
-import { Modal } from "./components/Modal";
 import SideRays from "./components/SideRays";
 import SpecularButton from "./components/SpecularButton";
 import { VaultDashboard } from "./vault/VaultDashboard";
@@ -13,11 +12,30 @@ import styles from "./page.module.css";
 
 // ── API helpers ─────────────────────────────────────────────
 
-async function fetchVaultStatus(): Promise<boolean | null> {
+async function readApiResponse(res: Response): Promise<Record<string, unknown>> {
+  const body = await res.text();
+  try {
+    const data: unknown = JSON.parse(body);
+    return data && typeof data === "object"
+      ? data as Record<string, unknown>
+      : { detail: String(data) };
+  } catch {
+    return { detail: body || `Server returned HTTP ${res.status}` };
+  }
+}
+
+async function fetchVaultStatus(): Promise<{ initialized: boolean; databaseFound: boolean } | null> {
   const res = await fetch("/api/status");
   if (!res.ok) return null;
-  const data = await res.json();
-  return data.initialized;
+  const data = await readApiResponse(res);
+  return {
+    initialized: data.initialized === true,
+    // Older backend processes only return `initialized`; an uninitialized vault
+    // on those versions should still offer the database locator.
+    databaseFound: typeof data.database_found === "boolean"
+      ? data.database_found
+      : data.initialized === true,
+  };
 }
 
 async function initializeVault(password: string): Promise<void> {
@@ -26,8 +44,8 @@ async function initializeVault(password: string): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ password }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || "Failed to initialize vault");
+  const data = await readApiResponse(res);
+  if (!res.ok) throw new Error(String(data.detail || "Failed to initialize vault"));
 }
 
 async function unlockVault(password: string): Promise<void> {
@@ -36,8 +54,8 @@ async function unlockVault(password: string): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ password }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || "Failed to unlock vault");
+  const data = await readApiResponse(res);
+  if (!res.ok) throw new Error(String(data.detail || "Failed to unlock vault"));
 }
 
 async function lockVault(): Promise<void> {
@@ -53,15 +71,48 @@ export default function Home() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isVaultInitialized, setIsVaultInitialized] = useState<boolean | null>(null);
+  const [isDatabaseFound, setIsDatabaseFound] = useState<boolean | null>(null);
+  const [isImportingDatabase, setIsImportingDatabase] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const electronAPI = typeof window !== "undefined"
+    ? (window as unknown as { electron?: { locateDatabase?: () => Promise<string | null> } }).electron
+    : undefined;
 
   useEffect(() => {
     fetchVaultStatus()
       .then((initialized) => {
-        if (initialized !== null) setIsVaultInitialized(initialized);
+        if (initialized !== null) {
+          setIsVaultInitialized(initialized.initialized);
+          setIsDatabaseFound(initialized.databaseFound);
+        }
       })
       .catch((err) => console.error("Failed to check vault status:", err));
   }, []);
+
+  const handleLocateDatabase = useCallback(async () => {
+    setIsImportingDatabase(true);
+    setError(null);
+    try {
+      const selectedPath = await electronAPI?.locateDatabase?.();
+      if (electronAPI?.locateDatabase && !selectedPath) return;
+      const res = await fetch("/api/db-location/locate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(selectedPath ? { path: selectedPath } : {}),
+      });
+      const data = await readApiResponse(res);
+      if (!res.ok) throw new Error(String(data.detail || "Failed to locate the database"));
+
+      const status = await fetchVaultStatus();
+      if (!status) throw new Error("Database was imported, but its status could not be read.");
+      setIsDatabaseFound(status.databaseFound);
+      setIsVaultInitialized(status.initialized);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to locate the database");
+    } finally {
+      setIsImportingDatabase(false);
+    }
+  }, [electronAPI]);
 
   const handleUnlock = useCallback(
     async (e: React.FormEvent) => {
@@ -78,6 +129,7 @@ export default function Home() {
         if (isVaultInitialized === false) {
           await initializeVault(password);
           setIsVaultInitialized(true);
+          setIsDatabaseFound(true);
         } else {
           await unlockVault(password);
         }
@@ -140,12 +192,12 @@ export default function Home() {
       // Since caching the master password in plain text is a security risk, 
       // this feature is disabled until PRF is implemented.
       throw new Error("Windows Hello is currently disabled for security. Please use your master password.");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      if (err.name === "NotAllowedError") {
+      if (err instanceof Error && err.name === "NotAllowedError") {
         setError("Windows Hello authentication was cancelled.");
       } else {
-        setError(err.message || "Failed to authenticate with Windows Hello.");
+        setError(err instanceof Error ? err.message : "Failed to authenticate with Windows Hello.");
       }
     }
   }, []);
@@ -277,45 +329,63 @@ export default function Home() {
             </SpecularButton>
           </form>
 
-          {/* "or" Divider */}
-          <div className={styles.dividerContainer}>
-            <div className={styles.dividerLine} />
-            <span className={styles.dividerText}>or</span>
-            <div className={styles.dividerLine} />
-          </div>
-
-          {/* Windows Hello Card */}
-          <SpecularButton
-            type="button"
-            onClick={handleOpenHello}
-            size="lg"
-            radius={16}
-            tint="var(--bg-surface)"
-            tintOpacity={0.8}
-            blur={14}
-            textColor="var(--text-main)"
-            lineColor="#818cf8"
-            baseColor="#263147"
-            intensity={1.1}
-            shineSize={20}
-            shineFade={35}
-            thickness={1.3}
-            speed={0.3}
-            followMouse={true}
-            proximity={0}
-            animateOnlyOnHover={true}
-            className={styles.helloCard}
-          >
-            <div className={styles.helloContent}>
-              <div className={styles.helloIconContainer}>
-                <Fingerprint className={styles.helloFingerprint} />
-              </div>
-              <div className={styles.helloTextContainer}>
-                <div className={styles.helloTitle}>Use Windows Hello</div>
-                <div className={styles.helloSubtitle}>Sign in with your fingerprint</div>
-              </div>
+          {isDatabaseFound === false && (
+            <div className={styles.locateDatabase}>
+              <span>Already have a Keybox vault?</span>
+              <button
+                type="button"
+                onClick={handleLocateDatabase}
+                disabled={isImportingDatabase}
+                className={styles.locateDatabaseButton}
+              >
+                {isImportingDatabase ? "Locating database…" : "Locate existing database"}
+              </button>
             </div>
-          </SpecularButton>
+          )}
+
+          {isVaultInitialized !== false && (
+            <>
+              {/* "or" Divider */}
+              <div className={styles.dividerContainer}>
+                <div className={styles.dividerLine} />
+                <span className={styles.dividerText}>or</span>
+                <div className={styles.dividerLine} />
+              </div>
+
+              {/* Windows Hello Card */}
+              <SpecularButton
+                type="button"
+                onClick={handleOpenHello}
+                size="lg"
+                radius={16}
+                tint="var(--bg-surface)"
+                tintOpacity={0.8}
+                blur={14}
+                textColor="var(--text-main)"
+                lineColor="#818cf8"
+                baseColor="#263147"
+                intensity={1.1}
+                shineSize={20}
+                shineFade={35}
+                thickness={1.3}
+                speed={0.3}
+                followMouse={true}
+                proximity={0}
+                animateOnlyOnHover={true}
+                className={styles.helloCard}
+              >
+                <div className={styles.helloContent}>
+                  <div className={styles.helloIconContainer}>
+                    <Fingerprint className={styles.helloFingerprint} />
+                  </div>
+                  <div className={styles.helloTextContainer}>
+                    <div className={styles.helloTitle}>Use Windows Hello</div>
+                    <div className={styles.helloSubtitle}>Sign in with your fingerprint</div>
+                  </div>
+                </div>
+              </SpecularButton>
+            </>
+          )}
         </div>
 
         {/* Footer */}

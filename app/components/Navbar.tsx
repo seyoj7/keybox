@@ -9,15 +9,18 @@ interface NavbarProps {
   onLockVault?: () => void;
 }
 
-// Access the Electron API exposed via preload (undefined in browser)
-const electronAPI = typeof window !== "undefined"
-  ? (window as unknown as { electron?: {
-      minimize: () => void;
-      maximize: () => void;
-      close: () => void;
-      isMaximized: () => Promise<boolean>;
-    } }).electron
-  : undefined;
+type ElectronWindowAPI = {
+  minimize: () => Promise<void>;
+  maximize: () => Promise<boolean>;
+  close: () => Promise<void>;
+  isMaximized: () => Promise<boolean>;
+  onWindowStateChanged?: (callback: (state: { maximized: boolean }) => void) => () => void;
+};
+
+function getElectronAPI(): ElectronWindowAPI | undefined {
+  if (typeof window === "undefined") return undefined;
+  return (window as Window & { electron?: ElectronWindowAPI }).electron;
+}
 
 export const Navbar: React.FC<NavbarProps> = ({
   isUnlocked = false,
@@ -27,25 +30,40 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Sync maximized state when the window resizes
   useEffect(() => {
+    const electronAPI = getElectronAPI();
     if (!electronAPI) return;
 
     const syncMaximized = async () => {
-      const maximized = await electronAPI.isMaximized();
-      setIsMaximized(maximized);
+      try {
+        setIsMaximized(await electronAPI.isMaximized());
+      } catch (error) {
+        console.error("Could not read Electron window state:", error);
+      }
     };
 
     window.addEventListener("resize", syncMaximized);
-    return () => window.removeEventListener("resize", syncMaximized);
+    const unsubscribe = electronAPI.onWindowStateChanged?.((state) => {
+      setIsMaximized(state.maximized);
+    });
+    void syncMaximized();
+    return () => {
+      window.removeEventListener("resize", syncMaximized);
+      unsubscribe?.();
+    };
   }, []);
 
   const handleMinimize = useCallback(() => {
-    electronAPI?.minimize();
+    void getElectronAPI()?.minimize().catch((error) => {
+      console.error("Could not minimize Keybox:", error);
+    });
   }, []);
 
   const handleToggleMaximize = useCallback(() => {
+    const electronAPI = getElectronAPI();
     if (electronAPI) {
-      electronAPI.maximize();
-      setIsMaximized((prev) => !prev);
+      void electronAPI.maximize().then(setIsMaximized).catch((error) => {
+        console.error("Could not change Keybox window size:", error);
+      });
     } else {
       // Fallback for browser
       if (!document.fullscreenElement) {
@@ -59,7 +77,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   const handleClose = useCallback(() => {
-    electronAPI?.close();
+    void getElectronAPI()?.close().catch((error) => {
+      console.error("Could not close Keybox:", error);
+    });
   }, []);
 
   return (

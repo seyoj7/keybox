@@ -1,12 +1,17 @@
 import json
+import os
 import vault_database as database
 from password_generator import generate_salt, derive_key, encrypt, decrypt
 from cryptography.exceptions import InvalidTag
 
 
 def is_vault_initialized() -> bool:
-    database.init_db()
-    return database.get_metadata("master_salt") is not None
+    if not os.path.isfile(database.DB_PATH):
+        return False
+    try:
+        return database.get_metadata("master_salt") is not None
+    except Exception:
+        return False
 
 def setup_vault(master_password: str):
     database.init_db()
@@ -24,7 +29,8 @@ def setup_vault(master_password: str):
     database.save_metadata("verification_token", ciphertext)
 
 def unlock_vault(master_password: str) -> bytes:
-    database.init_db()
+    if not is_vault_initialized():
+        raise ValueError("Vault is not initialized.")
     salt = database.get_metadata("master_salt")
     nonce = database.get_metadata("verification_nonce")
     token = database.get_metadata("verification_token")
@@ -72,7 +78,10 @@ def change_master_password(old_password: str, new_password: str):
         payload = json.dumps({
             "website": entry['website'],
             "username": entry['username'],
-            "password": entry['password']
+            "password": entry['password'],
+            "profile": entry.get('profile', 'Default'),
+            "icon": entry.get('icon'),
+            "color": entry.get('color'),
         }).encode('utf-8')
         c_text, n = encrypt(new_key, payload)
         database.update_password(entry['id'], c_text, n)

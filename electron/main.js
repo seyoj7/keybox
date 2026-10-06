@@ -1,264 +1,182 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Electron's main entry is CommonJS. */
 const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const { spawn } = require("child_process");
 const fs = require("fs");
+const http = require("http");
 const path = require("path");
-const net = require("net");
 
-// ── Paths ──────────────────────────────────────────────────────
-// In development the resources sit relative to the project root.
-// After packaging, electron-builder copies them into `resources/`.
-const isProd = app.isPackaged;
-
-const resourcesPath = isProd
-  ? path.join(process.resourcesPath)
-  : path.join(__dirname, "..");
-
-const backendExePath = isProd
+const APP_HOST = "127.0.0.1";
+const BACKEND_PORT = 8000;
+const FRONTEND_PORT = 3000;
+const STARTUP_TIMEOUT_MS = 45_000;
+const isPackaged = app.isPackaged;
+const resourcesPath = isPackaged ? process.resourcesPath : path.resolve(__dirname, "..");
+const backendPath = isPackaged
   ? path.join(resourcesPath, "keybox-backend.exe")
   : path.join(resourcesPath, "dist", "backend", "keybox-backend.exe");
-
-const nextAppDir = isProd
+const nextAppDir = isPackaged
   ? path.join(resourcesPath, "app")
   : path.join(resourcesPath, "dist", "next", "standalone");
-
-// ── User data directory for the database ──────────────────────
-// When packaged, the backend should store its DB in a persistent
-// user-data folder, not next to the exe (which is read-only).
+const serverPath = path.join(nextAppDir, "server.js");
 const userDataPath = app.getPath("userData");
 const configPath = path.join(userDataPath, "config.json");
 
-function readDatabaseConfig() {
-  if (!fs.existsSync(configPath)) return {};
+let mainWindow = null;
+let backendProcess = null;
+let nextProcess = null;
+let isQuitting = false;
 
-  try {
-    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    if (!config || typeof config !== "object" || Array.isArray(config)) {
-      throw new Error("The saved Keybox configuration is not a JSON object.");
+function logChildOutput(name, child) {
+  child.stdout?.on("data", (chunk) => {
+    for (const line of chunk.toString().trimEnd().split(/\r?\n/)) {
+      if (line) console.log(`[${name}] ${line}`);
     }
-    return config;
-  } catch (err) {
-    throw new Error(`Could not read Keybox configuration at ${configPath}: ${err.message}`);
-  }
-}
-
-function saveDatabaseConfig(config) {
-  fs.mkdirSync(userDataPath, { recursive: true });
-  const temporaryPath = `${configPath}.tmp`;
-  fs.writeFileSync(temporaryPath, JSON.stringify(config, null, 2), "utf8");
-  fs.renameSync(temporaryPath, configPath);
-}
-
-async function locateMissingDatabaseDirectory() {
-  if (!isProd) return;
-
-  const config = readDatabaseConfig();
-  const savedDir = config.db_dir;
-  if (typeof savedDir !== "string" || !savedDir || fs.existsSync(savedDir)) return;
-
-  const choice = await dialog.showMessageBox({
-    type: "warning",
-    title: "Keybox database folder not found",
-    message: `The saved database folder could not be found:\n${savedDir}`,
-    detail: "Locate your existing keybox.db, or choose a folder where Keybox can create a new database.",
-    buttons: ["Locate existing database", "Choose folder for a new database", "Quit"],
-    defaultId: 0,
-    cancelId: 2,
   });
+  child.stderr?.on("data", (chunk) => {
+    for (const line of chunk.toString().trimEnd().split(/\r?\n/)) {
+      if (line) console.error(`[${name}] ${line}`);
+    }
+  });
+}
 
-  let selectedDir;
-  if (choice.response === 0) {
-    const result = await dialog.showOpenDialog({
+function requestIsReady(url) {
+  return new Promise((resolve) => {
+    const request = http.get(url, (response) => {
+      response.resume();
+      resolve(response.statusCode === 200);
+    });
+    request.setTimeout(1_000, () => request.destroy());
+    request.once("error", () => resolve(false));
+  });
+}
+
+async function waitForService(child, url, label) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < STARTUP_TIMEOUT_MS) {
+    if (child.spawnError) {
+      throw new Error(`${label} could not start: ${child.spawnError.message}`);
+    }
+    if (child.exitCode !== null || child.killed) {
+      throw new Error(`${label} stopped before it became ready.`);
+    }
+    if (await requestIsReady(url)) return;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`${label} did not become ready at ${url}.`);
+}
+
+function startChild(executable, args, options, label) {
+  const child = spawn(executable, args, {
+    ...options,
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  logChildOutput(label, child);
+  child.once("error", (error) => {
+    child.spawnError = error;
+    console.error(`[Electron] ${label} process error:`, error);
+  });
+  child.once("exit", (code, signal) => {
+    console.log(`[Electron] ${label} exited (code=${code}, signal=${signal}).`);
+    if (!isQuitting && mainWindow && !mainWindow.isDestroyed()) {
+      dialog.showErrorBox(
+        `${label} stopped`,
+        `The ${label} service stopped unexpectedly. Restart Keybox to continue.`,
+      );
+      app.quit();
+    }
+  });
+  return child;
+}
+
+async function startBackend() {
+  if (!fs.existsSync(backendPath)) {
+    throw new Error(`Backend executable is missing: ${backendPath}`);
+  }
+  fs.mkdirSync(userDataPath, { recursive: true });
+
+  const env = { ...process.env };
+  if (isPackaged) {
+    env.KEYBOX_DATA_DIR = userDataPath;
+    env.KEYBOX_CONFIG_PATH = configPath;
+  }
+
+  backendProcess = startChild(
+    backendPath,
+    [],
+    { cwd: resourcesPath, env },
+    "Backend",
+  );
+  await waitForService(
+    backendProcess,
+    `http://${APP_HOST}:${BACKEND_PORT}/openapi.json`,
+    "Backend",
+  );
+}
+
+async function startNextServer() {
+  if (!fs.existsSync(serverPath)) {
+    throw new Error(`Next.js server is missing: ${serverPath}`);
+  }
+
+  const env = {
+    ...process.env,
+    PORT: String(FRONTEND_PORT),
+    HOSTNAME: APP_HOST,
+    NODE_ENV: "production",
+  };
+  if (isPackaged) env.ELECTRON_RUN_AS_NODE = "1";
+
+  nextProcess = startChild(
+    process.execPath,
+    [serverPath],
+    { cwd: nextAppDir, env },
+    "Next.js",
+  );
+  await waitForService(
+    nextProcess,
+    `http://${APP_HOST}:${FRONTEND_PORT}/`,
+    "Next.js",
+  );
+}
+
+function publishWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("window-state-changed", {
+    maximized: mainWindow.isMaximized(),
+    fullscreen: mainWindow.isFullScreen(),
+  });
+}
+
+function registerIpcHandlers() {
+  ipcMain.handle("window-minimize", () => {
+    mainWindow?.minimize();
+  });
+  ipcMain.handle("window-toggle-maximize", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+    return mainWindow.isMaximized();
+  });
+  ipcMain.handle("window-close", () => {
+    mainWindow?.close();
+  });
+  ipcMain.handle("window-is-maximized", () =>
+    Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized()),
+  );
+  ipcMain.handle("database-locate", async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
       title: "Locate your Keybox database",
       buttonLabel: "Use this database",
       properties: ["openFile"],
       filters: [{ name: "Keybox database", extensions: ["db"] }],
     });
-
-    if (result.canceled || result.filePaths.length === 0) {
-      throw new Error("No database was selected. Keybox did not change your saved database location.");
-    }
-
-    const selectedDatabase = result.filePaths[0];
-    if (path.basename(selectedDatabase).toLowerCase() !== "keybox.db") {
-      throw new Error("Select the Keybox database file named keybox.db.");
-    }
-    selectedDir = path.dirname(selectedDatabase);
-  } else if (choice.response === 1) {
-    const result = await dialog.showOpenDialog({
-      title: "Choose a folder for your new Keybox database",
-      buttonLabel: "Use this folder",
-      properties: ["openDirectory", "createDirectory"],
-    });
-
-    if (result.canceled || result.filePaths.length === 0) {
-      throw new Error("No folder was selected. Keybox did not change your saved database location.");
-    }
-    selectedDir = result.filePaths[0];
-  } else {
-    throw new Error(`The saved database folder could not be found: ${savedDir}.`);
-  }
-
-  config.db_dir = selectedDir;
-  saveDatabaseConfig(config);
-}
-
-// ── Child-process handles ────────────────────────────────────
-let backendProcess = null;
-let nextProcess = null;
-
-// ── Port probing helper ──────────────────────────────────────
-function waitForPort(port, host = "127.0.0.1", timeoutMs = 30_000) {
-  const start = Date.now();
-  return new Promise((resolve, reject) => {
-    function tryConnect() {
-      if (Date.now() - start > timeoutMs) {
-        return reject(new Error(`Timeout waiting for ${host}:${port}`));
-      }
-      const sock = new net.Socket();
-      sock.setTimeout(500);
-      sock
-        .once("connect", () => {
-          sock.destroy();
-          resolve();
-        })
-        .once("error", () => {
-          sock.destroy();
-          setTimeout(tryConnect, 300);
-        })
-        .once("timeout", () => {
-          sock.destroy();
-          setTimeout(tryConnect, 300);
-        })
-        .connect(port, host);
-    }
-    tryConnect();
+    return result.canceled ? null : (result.filePaths[0] ?? null);
   });
 }
-
-// ── Start backend exe ────────────────────────────────────────
-function startBackend() {
-  return new Promise((resolve, reject) => {
-    console.log("[Electron] Starting backend:", backendExePath);
-
-    const env = { ...process.env };
-    // Tell the backend where to store its database when packaged
-    if (isProd) {
-      env.KEYBOX_DATA_DIR = userDataPath;
-      env.KEYBOX_CONFIG_PATH = configPath;
-    }
-
-    backendProcess = spawn(backendExePath, [], {
-      cwd: isProd ? userDataPath : path.join(resourcesPath),
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
-
-    backendProcess.stdout.on("data", (d) =>
-      console.log("[Backend]", d.toString().trim())
-    );
-    backendProcess.stderr.on("data", (d) =>
-      console.error("[Backend]", d.toString().trim())
-    );
-
-    backendProcess.once("error", (err) => {
-      console.error("[Electron] Failed to start backend:", err);
-      reject(err);
-    });
-
-    backendProcess.once("exit", (code) => {
-      console.log("[Electron] Backend exited with code", code);
-      backendProcess = null;
-    });
-
-    // Wait until the backend is listening on port 8000
-    waitForPort(8000, "127.0.0.1", 30_000).then(resolve).catch(reject);
-  });
-}
-
-// ── Start Next.js standalone server ──────────────────────────
-function startNextServer() {
-  return new Promise((resolve, reject) => {
-    const serverJs = path.join(nextAppDir, "server.js");
-    console.log("[Electron] Starting Next.js server:", serverJs);
-
-    const env = {
-      ...process.env,
-      PORT: "3000",
-      HOSTNAME: "127.0.0.1",
-      NODE_ENV: "production",
-    };
-
-    // In the packaged app, process.execPath is the Electron binary.
-    // Set ELECTRON_RUN_AS_NODE=1 so it acts as a plain Node runtime
-    // for the standalone Next.js server.js script.
-    if (isProd) {
-      env.ELECTRON_RUN_AS_NODE = "1";
-    }
-
-    nextProcess = spawn(process.execPath, [serverJs], {
-      cwd: nextAppDir,
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
-
-    nextProcess.stdout.on("data", (d) =>
-      console.log("[Next.js]", d.toString().trim())
-    );
-    nextProcess.stderr.on("data", (d) =>
-      console.error("[Next.js]", d.toString().trim())
-    );
-
-    nextProcess.once("error", (err) => {
-      console.error("[Electron] Failed to start Next.js:", err);
-      reject(err);
-    });
-
-    nextProcess.once("exit", (code) => {
-      console.log("[Electron] Next.js exited with code", code);
-      nextProcess = null;
-    });
-
-    waitForPort(3000, "127.0.0.1", 30_000).then(resolve).catch(reject);
-  });
-}
-
-// ── Kill helpers ─────────────────────────────────────────────
-function killProcess(proc, name) {
-  if (!proc || proc.killed) return;
-  console.log(`[Electron] Stopping ${name}…`);
-  try {
-    // On Windows, child_process.kill() sends SIGTERM which doesn't
-    // work for non-Node processes.  Use taskkill instead.
-    if (process.platform === "win32") {
-      spawn("taskkill", ["/pid", String(proc.pid), "/f", "/t"], {
-        windowsHide: true,
-      });
-    } else {
-      proc.kill("SIGTERM");
-    }
-  } catch {
-    /* already dead */
-  }
-}
-
-// ── IPC handlers for frameless window controls ───────────────
-ipcMain.on("window-minimize", () => mainWindow?.minimize());
-ipcMain.on("window-maximize", () => {
-  if (mainWindow?.isMaximized()) {
-    mainWindow.unmaximize();
-  } else {
-    mainWindow?.maximize();
-  }
-});
-ipcMain.on("window-close", () => mainWindow?.close());
-ipcMain.handle("window-is-maximized", () => mainWindow?.isMaximized() ?? false);
-
-// ── Create BrowserWindow ─────────────────────────────────────
-let mainWindow = null;
 
 function createWindow() {
+  const iconPath = path.join(resourcesPath, ...(isPackaged ? ["app"] : []), "public", "logo.png");
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -267,54 +185,75 @@ function createWindow() {
     title: "Keybox",
     frame: false,
     backgroundColor: "#090c13",
-    icon: path.join(resourcesPath, isProd ? "app" : "", "public", "logo.png"),
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    show: false,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     },
-    show: false,
-    autoHideMenuBar: true,
   });
 
-  mainWindow.loadURL("http://127.0.0.1:3000");
-
-  mainWindow.once("ready-to-show", () => {
-    mainWindow.show();
-  });
-
+  mainWindow.on("maximize", publishWindowState);
+  mainWindow.on("unmaximize", publishWindowState);
+  mainWindow.on("enter-full-screen", publishWindowState);
+  mainWindow.on("leave-full-screen", publishWindowState);
+  mainWindow.once("ready-to-show", () => mainWindow?.show());
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+  mainWindow.webContents.on("did-fail-load", (_event, code, description) => {
+    console.error(`[Electron] Page load failed (${code}): ${description}`);
+  });
+  mainWindow.loadURL(`http://${APP_HOST}:${FRONTEND_PORT}`);
 }
 
-// ── App lifecycle ────────────────────────────────────────────
-app.on("window-all-closed", () => {
-  app.quit();
-});
-
-app.on("before-quit", () => {
-  killProcess(nextProcess, "Next.js");
-  killProcess(backendProcess, "Backend");
-});
-
-app.whenReady().then(async () => {
-  try {
-    fs.mkdirSync(userDataPath, { recursive: true });
-    await locateMissingDatabaseDirectory();
-    await startBackend();
-    console.log("[Electron] Backend is ready on :8000");
-
-    await startNextServer();
-    console.log("[Electron] Next.js is ready on :3000");
-
-    createWindow();
-  } catch (err) {
-    console.error("[Electron] Startup failed:", err);
-    dialog.showErrorBox(
-      "Keybox – Startup Error",
-      `Failed to start Keybox services:\n\n${err.message}\n\nThe application will now close.`
-    );
-    app.quit();
+function stopChild(child, label) {
+  if (!child || child.exitCode !== null || child.killed) return;
+  if (process.platform === "win32") {
+    const killer = spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+      windowsHide: true,
+      stdio: "ignore",
+    });
+    killer.once("error", () => child.kill());
+  } else {
+    child.kill("SIGTERM");
   }
-});
+  console.log(`[Electron] Stopping ${label}.`);
+}
+
+const hasSingleInstance = app.requestSingleInstanceLock();
+if (!hasSingleInstance) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  });
+
+  registerIpcHandlers();
+  app.on("before-quit", () => {
+    isQuitting = true;
+    stopChild(nextProcess, "Next.js");
+    stopChild(backendProcess, "Backend");
+  });
+  app.on("window-all-closed", () => app.quit());
+
+  app.whenReady().then(async () => {
+    try {
+      await startBackend();
+      await startNextServer();
+      createWindow();
+    } catch (error) {
+      console.error("[Electron] Startup failed:", error);
+      dialog.showErrorBox(
+        "Keybox startup error",
+        `Keybox could not start its local services.\n\n${error.message}`,
+      );
+      app.quit();
+    }
+  });
+}
