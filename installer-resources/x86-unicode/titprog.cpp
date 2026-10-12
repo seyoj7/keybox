@@ -30,7 +30,36 @@ typedef struct {
 
 WNDPROC g_PBOrgProc;
 UINT g_rangeTot;
+int g_rangeLow;
+int g_rangeHigh;
+int g_lastLocalPercent;
+int g_localPosition;
+int g_stage;
 HMODULE g_hThisDll;
+
+static int Clamp(int value, int low, int high)
+{
+	return value < low ? low : (value > high ? high : value);
+}
+
+static int LocalPercent(int position)
+{
+	const int span = g_rangeHigh - g_rangeLow;
+	return span > 0 ? Clamp((position - g_rangeLow) * 100 / span, 0, 100) : 0;
+}
+
+static void BeginNextStage()
+{
+	if (g_stage < 2)
+		++g_stage;
+	g_lastLocalPercent = 0;
+	g_localPosition = g_rangeLow;
+}
+
+static int OverallPosition(int localPercent)
+{
+	return g_stage * 100 + Clamp(localPercent, 0, 100);
+}
 
 #define MakeChA(c) c
 #define MakeChW(c) L##c
@@ -55,20 +84,42 @@ LRESULT CALLBACK PBSubProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp)
 	switch(msg) 
 	{
 	case PBM_SETRANGE:
-		wp=LOWORD(lp);
-		lp=HIWORD(lp);
+		{
+			const int low = (short)LOWORD(lp);
+			const int high = (short)HIWORD(lp);
+			if (g_lastLocalPercent >= 90)
+				BeginNextStage();
+			g_rangeLow = low;
+			g_rangeHigh = high;
+			g_lastLocalPercent = 0;
+			return isU ? CallWindowProcW(g_PBOrgProc, hwnd, PBM_SETRANGE32, 0, 300)
+				: CallWindowProcA(g_PBOrgProc, hwnd, PBM_SETRANGE32, 0, 300);
+		}
 	case PBM_SETRANGE32:
-		g_rangeTot=wp+lp;
-		break;
+		if (g_lastLocalPercent >= 90)
+			BeginNextStage();
+		g_rangeLow = (int)wp;
+		g_rangeHigh = (int)lp;
+		g_lastLocalPercent = 0;
+		g_localPosition = g_rangeLow;
+		return isU ? CallWindowProcW(g_PBOrgProc, hwnd, PBM_SETRANGE32, 0, 300)
+			: CallWindowProcA(g_PBOrgProc, hwnd, PBM_SETRANGE32, 0, 300);
 	case PBM_SETPOS:
 		{
+			g_localPosition = (int)wp;
+			const int localPercent = LocalPercent(g_localPosition);
+			if (g_lastLocalPercent >= 90 && localPercent <= 10)
+				BeginNextStage();
+			g_lastLocalPercent = localPercent;
+			wp = (WPARAM)OverallPosition(localPercent);
+
 			HWND hwndNSIS=GetParent(GetParent(hwnd));
 			UINT cchTot,cch=SNDMSG(hwndNSIS,WM_GETTEXTLENGTH,0,0);
 			cchTot=cch+5+1;
 			void*buf=NSISMemAlloc(cchTot*(isU?2:1));
 			if (buf) 
 			{
-				const UINT percent=wp*100/(g_rangeTot?g_rangeTot:1);
+				const UINT percent=(UINT)(wp*100/(g_rangeTot?g_rangeTot:300));
 				
 				if (isU)
 					FixTitleAorW(WCHAR,W,percent);
@@ -78,7 +129,18 @@ LRESULT CALLBACK PBSubProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp)
 				NSISMemFree(buf);
 			}
 		}
-		break;
+		return isU ? CallWindowProcW(g_PBOrgProc, hwnd, msg, wp, lp)
+			: CallWindowProcA(g_PBOrgProc, hwnd, msg, wp, lp);
+	case PBM_DELTAPOS:
+		{
+			g_localPosition += (int)wp;
+			const int localPercent = LocalPercent(g_localPosition);
+			if (g_lastLocalPercent >= 90 && localPercent <= 10)
+				BeginNextStage();
+			g_lastLocalPercent = localPercent;
+			return isU ? CallWindowProcW(g_PBOrgProc, hwnd, PBM_SETPOS, OverallPosition(localPercent), 0)
+				: CallWindowProcA(g_PBOrgProc, hwnd, PBM_SETPOS, OverallPosition(localPercent), 0);
+		}
 	}
 	return isU ? CallWindowProcW(g_PBOrgProc,hwnd,msg,wp,lp) : CallWindowProcA(g_PBOrgProc,hwnd,msg,wp,lp);
 }
@@ -103,8 +165,15 @@ extern "C" void __declspec(dllexport) __cdecl Start(HWND hwndNSIS,int N_CCH,char
 	{
 		PBRANGE pbr;
 		SendMessage(hProgress,PBM_GETRANGE,0,(LPARAM)&pbr);
-		g_rangeTot=pbr.iLow+pbr.iHigh;
+		g_rangeLow=pbr.iLow;
+		g_rangeHigh=pbr.iHigh;
+		g_rangeTot=300;
+		g_lastLocalPercent=0;
+		g_localPosition=pbr.iLow;
+		g_stage=0;
 
+		// Initialize the display scale before intercepting NSIS range updates.
+		SendMessage(hProgress, PBM_SETRANGE32, 0, 300);
 		g_PBOrgProc=(WNDPROC) (isU?SetWindowLongPtrW:SetWindowLongPtrA) (hProgress,GWLP_WNDPROC,(LONG_PTR)PBSubProc);
 	}
 }
