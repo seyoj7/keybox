@@ -12,15 +12,14 @@ const FRONTEND_PORT = 3000;
 const STARTUP_TIMEOUT_MS = 45_000;
 const isPackaged = app.isPackaged;
 const resourcesPath = isPackaged ? process.resourcesPath : path.resolve(__dirname, "..");
-const backendPath = isPackaged
-  ? path.join(resourcesPath, "keybox-backend", "keybox-backend.exe")
-  : path.join(resourcesPath, "dist", "backend", "keybox-backend", "keybox-backend.exe");
+const backendScriptPath = isPackaged
+  ? path.join(resourcesPath, "backend", "server.js")
+  : path.join(resourcesPath, "dist", "backend", "server.js");
 const nextAppDir = isPackaged
   ? path.join(resourcesPath, "app")
   : resourcesPath;
 const serverPath = path.join(nextAppDir, "server.js");
 const nextCliPath = path.join(resourcesPath, "node_modules", "next", "dist", "bin", "next");
-const backendScriptPath = path.join(resourcesPath, "backend", "main.py");
 const userDataPath = app.getPath("userData");
 const configPath = path.join(userDataPath, "config.json");
 const backendToken = crypto.randomBytes(32).toString("hex");
@@ -94,30 +93,19 @@ function startChild(executable, args, options, label) {
 }
 
 async function startBackend() {
-  if (isPackaged && !fs.existsSync(backendPath)) {
-    throw new Error(`Backend executable is missing: ${backendPath}`);
-  }
-  if (!isPackaged && !fs.existsSync(backendScriptPath)) {
-    throw new Error(`Backend source is missing: ${backendScriptPath}`);
-  }
+  if (!fs.existsSync(backendScriptPath)) throw new Error(`Backend entry point is missing: ${backendScriptPath}`);
   fs.mkdirSync(userDataPath, { recursive: true });
 
   const env = { ...process.env };
-  if (isPackaged) {
-    env.KEYBOX_DATA_DIR = userDataPath;
-    env.KEYBOX_CONFIG_PATH = configPath;
-  }
+  env.KEYBOX_DATA_DIR = userDataPath;
+  env.KEYBOX_CONFIG_PATH = isPackaged ? configPath : path.join(resourcesPath, "backend", "config.json");
   env.KEYBOX_API_TOKEN = backendToken;
-
-  const backendCommand = isPackaged
-    ? backendPath
-    : (process.env.KEYBOX_PYTHON || (process.platform === "win32" ? "python" : "python3"));
-  const backendArgs = isPackaged ? [] : [backendScriptPath];
-  const backendCwd = isPackaged ? resourcesPath : path.join(resourcesPath, "backend");
+  env.ELECTRON_RUN_AS_NODE = "1";
+  env.NODE_OPTIONS = `${env.NODE_OPTIONS ? `${env.NODE_OPTIONS} ` : ""}--conditions=react-server`;
   backendProcess = startChild(
-    backendCommand,
-    backendArgs,
-    { cwd: backendCwd, env },
+    process.execPath,
+    [backendScriptPath],
+    { cwd: resourcesPath, env },
     "Backend",
   );
   await waitForService(
