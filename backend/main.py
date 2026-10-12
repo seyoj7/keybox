@@ -56,6 +56,12 @@ class DbLocationRequest(BaseModel):
 class LocateDatabaseRequest(BaseModel):
     path: Optional[str] = None
 
+class ReorderEntriesRequest(BaseModel):
+    entry_ids: list[int]
+
+class ReorderProfilesRequest(BaseModel):
+    profile_names: list[str]
+
 class EntryRequest(BaseModel):
     website: str
     username: str
@@ -141,6 +147,37 @@ def change_password(req: ChangePasswordRequest):
 def list_entries():
     vault = _get_vault()
     return vault.list_entries()
+
+
+@app.put("/api/entries/order")
+def reorder_entries(req: ReorderEntriesRequest):
+    _get_vault()
+    import vault_database as database
+    try:
+        database.reorder_passwords(req.entry_ids)
+        return {"status": "updated"}
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.get("/api/profile-order")
+def get_profile_order():
+    _get_vault()
+    import json
+    import vault_database as database
+    saved_order = database.get_metadata("profile_order")
+    return json.loads(saved_order.decode("utf-8")) if saved_order else []
+
+
+@app.put("/api/profile-order")
+def save_profile_order(req: ReorderProfilesRequest):
+    _get_vault()
+    import json
+    import vault_database as database
+    if len(req.profile_names) != len(set(req.profile_names)):
+        raise HTTPException(status_code=400, detail="Profile names must be unique.")
+    database.save_metadata("profile_order", json.dumps(req.profile_names).encode("utf-8"))
+    return {"status": "updated"}
 
 
 @app.get("/api/entries/{entry_id}")

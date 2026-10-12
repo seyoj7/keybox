@@ -83,6 +83,9 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
   const [createdProfiles, setCreatedProfiles] = useState<Profile[]>([]);
   const [visiblePasswords, setVisiblePasswords] = useState<Record<number, boolean>>({});
   const [entries, setEntries] = useState<VaultEntry[]>([]);
+  const [draggedEntryId, setDraggedEntryId] = useState<number | null>(null);
+  const [profileOrder, setProfileOrder] = useState<string[]>([]);
+  const [draggedProfileName, setDraggedProfileName] = useState<string | null>(null);
   const [decryptedPasswords, setDecryptedPasswords] = useState<Record<number, string>>({});
 
   const tileIconFileInputRef = useRef<HTMLInputElement>(null);
@@ -106,6 +109,12 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
           console.error('Failed to load entries:', err);
         }
       });
+    apiFetch('/api/profile-order')
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Failed to load profile order');
+        setProfileOrder(await response.json());
+      })
+      .catch((error) => console.error('Failed to load profile order:', error));
   }, [onLockVault]);
 
   const togglePassword = useCallback(async (e: React.MouseEvent, id: number) => {
@@ -214,9 +223,76 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
       displayName: meta?.customName || p.name,
       displayIcon: meta?.customImage || p.icon,
     };
+  }).sort((left, right) => {
+    const leftIndex = profileOrder.indexOf(left.name);
+    const rightIndex = profileOrder.indexOf(right.name);
+    if (leftIndex === -1 && rightIndex === -1) return 0;
+    if (leftIndex === -1) return 1;
+    if (rightIndex === -1) return -1;
+    return leftIndex - rightIndex;
   });
 
   const activeProfile = profiles.find(p => p.name === selectedProfile?.name) || selectedProfile;
+
+  const reorderEntries = useCallback(async (targetEntryId: number) => {
+    if (draggedEntryId === null || draggedEntryId === targetEntryId) return;
+    const currentProfileIds = activeProfile?.accounts.map((entry) => entry.id) ?? [];
+    const fromIndex = currentProfileIds.indexOf(draggedEntryId);
+    const toIndex = currentProfileIds.indexOf(targetEntryId);
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    const profileEntries = entries.filter((entry) => currentProfileIds.includes(entry.id));
+    if (profileEntries.length !== currentProfileIds.length) return;
+    const reorderedProfileEntries = [...profileEntries];
+    reorderedProfileEntries.splice(toIndex, 0, reorderedProfileEntries.splice(fromIndex, 1)[0]);
+    let profileIndex = 0;
+    const reorderedEntries = entries.map((entry) => currentProfileIds.includes(entry.id)
+      ? reorderedProfileEntries[profileIndex++]
+      : entry);
+    if (reorderedEntries.some((entry) => !entry)) return;
+    setEntries(reorderedEntries);
+    setDraggedEntryId(null);
+
+    try {
+      const response = await apiFetch('/api/entries/order', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entry_ids: reorderedEntries.map((entry) => entry.id) }),
+      });
+      if (!response.ok) throw new Error('Failed to save entry order');
+    } catch (error) {
+      console.error('Failed to save entry order:', error);
+      setEntries(await fetchEntries());
+    }
+  }, [activeProfile, draggedEntryId, entries]);
+
+  const reorderProfiles = useCallback(async (targetProfileName: string) => {
+    if (draggedProfileName === null || draggedProfileName === targetProfileName) return;
+    const reorderedNames = profiles.map((profile) => profile.name);
+    const fromIndex = reorderedNames.indexOf(draggedProfileName);
+    const toIndex = reorderedNames.indexOf(targetProfileName);
+    if (fromIndex < 0 || toIndex < 0) return;
+    reorderedNames.splice(toIndex, 0, reorderedNames.splice(fromIndex, 1)[0]);
+    setProfileOrder(reorderedNames);
+    setDraggedProfileName(null);
+
+    try {
+      const response = await apiFetch('/api/profile-order', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_names: reorderedNames }),
+      });
+      if (!response.ok) throw new Error('Failed to save profile order');
+    } catch (error) {
+      console.error('Failed to save profile order:', error);
+      try {
+        const response = await apiFetch('/api/profile-order');
+        if (response.ok) setProfileOrder(await response.json());
+      } catch (reloadError) {
+        console.error('Failed to reload profile order:', reloadError);
+      }
+    }
+  }, [draggedProfileName, profiles]);
 
   // Auto-select first profile
   useEffect(() => {
@@ -775,7 +851,19 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
             return (
               <div
                 key={profile.name + index}
-                className={`${styles.navItem} ${selectedProfile?.name === profile.name && activeView === 'vault' ? styles.active : ''}`}
+                className={`${styles.navItem} ${selectedProfile?.name === profile.name && activeView === 'vault' ? styles.active : ''} ${draggedProfileName === profile.name ? styles.navItemDragging : ''}`}
+                draggable
+                onDragStart={(event) => {
+                  setDraggedProfileName(profile.name);
+                  event.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void reorderProfiles(profile.name);
+                }}
+                onDragEnd={() => setDraggedProfileName(null)}
                 onClick={() => {
                   setSelectedProfile(profile);
                   setInlineEditId(null);
@@ -891,7 +979,21 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
                   }
 
                   return (
-                  <div key={item.id} className={styles.tile}>
+                  <div
+                    key={item.id}
+                    className={`${styles.tile} ${draggedEntryId === item.id ? styles.tileDragging : ''}`}
+                    draggable={inlineEditId !== item.id}
+                    onDragStart={(event) => {
+                      setDraggedEntryId(item.id);
+                      event.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      void reorderEntries(item.id);
+                    }}
+                    onDragEnd={() => setDraggedEntryId(null)}
+                  >
                     <div className={styles.tileIconContainer}>
                       <div className={styles.tileIconWrapper} style={{ color: item.color || '#818cf8' }}>
                         {item.icon ? (

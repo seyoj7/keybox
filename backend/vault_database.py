@@ -136,9 +136,21 @@ def init_db():
                 encrypted_data BLOB NOT NULL,
                 nonce BLOB NOT NULL,
                 created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                order_index INTEGER NOT NULL DEFAULT 0
             )
         """)
+        columns = {row[1] for row in cursor.execute("PRAGMA table_info(passwords)")}
+        if "order_index" not in columns:
+            try:
+                cursor.execute("ALTER TABLE passwords ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0")
+            except sqlite3.OperationalError as exc:
+                # Multiple API requests can trigger the first-run migration at
+                # once. Another request may add the column after our PRAGMA.
+                if "duplicate column name" not in str(exc).lower():
+                    raise
+            else:
+                cursor.execute("UPDATE passwords SET order_index = id")
         conn.commit()
 
 
@@ -184,11 +196,12 @@ def get_metadata(key: str) -> bytes | None:
         return row[0] if row else None
 
 def save_password(encrypted_data: bytes, nonce: bytes) -> int:
+    init_db()
     now = datetime.utcnow().isoformat()
     with get_connection() as conn:
         cursor = conn.execute("""
-            INSERT INTO passwords (encrypted_data, nonce, created_at, updated_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO passwords (encrypted_data, nonce, created_at, updated_at, order_index)
+            VALUES (?, ?, ?, ?, COALESCE((SELECT MAX(order_index) + 1 FROM passwords), 0))
         """, (encrypted_data, nonce, now, now))
         entry_id = cursor.lastrowid
         if entry_id is None:
@@ -214,9 +227,18 @@ def delete_password(password_id: int):
         conn.execute("DELETE FROM passwords WHERE id = ?", (password_id,))
 
 def list_passwords():
+    init_db()
     with get_connection() as conn:
-        cursor = conn.execute("SELECT id, encrypted_data, nonce, created_at, updated_at FROM passwords")
+        cursor = conn.execute("SELECT id, encrypted_data, nonce, created_at, updated_at FROM passwords ORDER BY order_index, id")
         return cursor.fetchall()
+
+def reorder_passwords(entry_ids: list[int]):
+    init_db()
+    with get_connection() as conn:
+        current_ids = [row[0] for row in conn.execute("SELECT id FROM passwords")]
+        if len(entry_ids) != len(current_ids) or set(entry_ids) != set(current_ids):
+            raise ValueError("The vault entries changed. Refresh and try again.")
+        conn.executemany("UPDATE passwords SET order_index = ? WHERE id = ?", enumerate(entry_ids))
 
 
 class Vault:

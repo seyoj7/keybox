@@ -258,7 +258,9 @@ function createWindow() {
     frame: false,
     backgroundColor: "#090c13",
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
-    show: false,
+    // Show the native window while the local services start so the app does
+    // not appear to do nothing during startup.
+    show: true,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -272,7 +274,6 @@ function createWindow() {
   mainWindow.on("unmaximize", publishWindowState);
   mainWindow.on("enter-full-screen", publishWindowState);
   mainWindow.on("leave-full-screen", publishWindowState);
-  mainWindow.once("ready-to-show", () => mainWindow?.show());
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
@@ -285,7 +286,9 @@ function createWindow() {
     }
   });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-  mainWindow.loadURL(`http://${APP_HOST}:${FRONTEND_PORT}`);
+  mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(
+    "<!doctype html><html><body style='margin:0;background:#090c13;color:#d6d9e2;font:14px system-ui;display:grid;place-items:center;height:100vh'><div style='text-align:center'><div style='font-size:24px;font-weight:600'>Keybox</div><div style='margin-top:10px;color:#8b93a7'>Starting securely…</div></div></body></html>",
+  )}`);
 }
 
 function stopChild(child, label) {
@@ -321,10 +324,13 @@ if (!hasSingleInstance) {
   app.on("window-all-closed", () => app.quit());
 
   app.whenReady().then(async () => {
+    createWindow();
     try {
-      await startBackend();
-      await startNextServer();
-      createWindow();
+      // Neither local service depends on the other, so start them together.
+      await Promise.all([startBackend(), startNextServer()]);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.loadURL(`http://${APP_HOST}:${FRONTEND_PORT}`);
+      }
     } catch (error) {
       console.error("[Electron] Startup failed:", error);
       dialog.showErrorBox(

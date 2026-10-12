@@ -123,6 +123,12 @@
   color: var(--text-main);
 }
 
+.navItemDragging {
+  opacity: 1;
+  background-color: rgba(129, 140, 248, 0.16);
+  outline: 1px solid var(--accent-primary);
+}
+
 .profileIcon {
   width: 24px;
   height: 24px;
@@ -437,6 +443,12 @@
 
 .tile:hover {
   background-color: var(--bg-surface-hover);
+}
+
+.tileDragging {
+  opacity: 1;
+  border-color: var(--accent-primary);
+  background-color: rgba(129, 140, 248, 0.12);
 }
 
 .tileIconContainer {
