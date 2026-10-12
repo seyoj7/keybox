@@ -7,7 +7,6 @@ import {
   unlockVault,
 } from "./auth";
 import * as db from "./db";
-import { generatePassword } from "./password_generator";
 import { Vault } from "./vault";
 
 const apiToken = process.env.KEYBOX_API_TOKEN;
@@ -215,29 +214,6 @@ async function dispatch(request: Request): Promise<Response> {
     if (method === "DELETE") {
       await getVault().deleteEntry(id);
       return json(200, { status: "deleted" });
-    }
-  }
-  if (method === "POST" && path === "/api/generate-password") {
-    const length = body.length === undefined ? 16 : body.length;
-    if (!Number.isInteger(length)) throw new ApiError(422, "length must be an integer.");
-    for (const key of ["use_uppercase", "use_digits", "use_special"]) {
-      if (body[key] !== undefined && typeof body[key] !== "boolean")
-        throw new ApiError(422, `${key} must be a boolean.`);
-    }
-    try {
-      return json(200, {
-        password: generatePassword(
-          length as number,
-          (body.use_uppercase ?? true) as boolean,
-          (body.use_digits ?? true) as boolean,
-          (body.use_special ?? true) as boolean,
-        ),
-      });
-    } catch (error) {
-      throw new ApiError(
-        400,
-        error instanceof Error ? error.message : "Unable to generate password.",
-      );
     }
   }
   if (method === "GET" && path === "/api/db-location")

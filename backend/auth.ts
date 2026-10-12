@@ -4,7 +4,7 @@ import {
   deriveKey,
   encrypt,
   generateSalt,
-} from "./password_generator";
+} from "./crypto";
 import * as db from "./db";
 import { Vault } from "./vault";
 
