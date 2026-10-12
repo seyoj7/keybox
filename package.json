@@ -4,13 +4,9 @@
   "private": true,
   "main": "electron/main.js",
   "scripts": {
-    "dev": "npm run build:backend && electron .",
-    "build:backend": "tsc -p tsconfig.backend.json",
-    "build:frontend": "next build",
-    "build": "npm run build:backend && npm run build:frontend",
-    "start": "next start",
+    "dev": "electron .",
     "lint": "eslint",
-    "build:windows": "npm run build && electron-builder --win"
+    "build:windows": "next build && electron-builder --win"
   },
   "dependencies": {
     "hash-wasm": "^4.12.0",
@@ -29,7 +25,6 @@
     "@types/react-dom": "^19",
     "@types/sql.js": "^1.4.11",
     "@types/three": "^0.186.0",
-    "concurrently": "^10.0.5",
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
     "eslint": "^9",
@@ -78,23 +73,12 @@
         "to": "app/public"
       },
       {
-        "from": "dist/backend",
-        "to": "backend",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
         "from": "node_modules/sql.js",
-        "to": "backend/node_modules/sql.js"
+        "to": "app/node_modules/sql.js"
       },
       {
         "from": "node_modules/hash-wasm",
-        "to": "backend/node_modules/hash-wasm"
-      },
-      {
-        "from": "node_modules/server-only",
-        "to": "backend/node_modules/server-only"
+        "to": "app/node_modules/hash-wasm"
       }
     ],
     "win": {

@@ -1,5 +1,10 @@
 import "server-only";
-import { decrypt, deriveKey, encrypt, generateSalt } from "./crypto";
+import {
+  decrypt,
+  deriveKey,
+  encrypt,
+  generateSalt,
+} from "./password_generator";
 import * as db from "./db";
 import { Vault } from "./vault";
 

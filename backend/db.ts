@@ -1,8 +1,9 @@
 import "server-only";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
-import initSqlJs, { type Database, type SqlJsStatic, type SqlValue } from "sql.js";
+import type { Database, SqlJsStatic, SqlValue } from "sql.js";
 
 type Config = { db_dir?: string; [key: string]: unknown };
 const defaultDataDir =
@@ -15,11 +16,11 @@ const defaultDataDir =
           "keybox",
         );
 export const CONFIG_FILE =
-  process.env.KEYBOX_CONFIG_PATH || path.join(__dirname, "config.json");
+  process.env.KEYBOX_CONFIG_PATH || path.join(process.cwd(), "backend", "config.json");
 
 function loadConfig(): Config {
   try {
-    const value: unknown = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
+    const value: unknown = JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ CONFIG_FILE, "utf8"));
     return value && typeof value === "object" && !Array.isArray(value)
       ? (value as Config)
       : {};
@@ -48,31 +49,37 @@ function saveConfig(config: Config): void {
 
 let config = loadConfig();
 export let DB_DIR = path.resolve(
+  /*turbopackIgnore: true*/
   config.db_dir || process.env.KEYBOX_DATA_DIR || defaultDataDir,
 );
 export let DB_PATH = path.join(DB_DIR, "keybox.db");
-if (!config.db_dir) {
-  config.db_dir = DB_DIR;
-  saveConfig(config);
-}
-
+type SqlJsInitializer = (options?: { locateFile?: (file: string) => string }) => Promise<SqlJsStatic>;
+const appRequire = createRequire(path.join(process.cwd(), "package.json"));
+const initializeSqlJs = appRequire("sql.js") as SqlJsInitializer;
 let SQL: SqlJsStatic | undefined;
 let database: Database;
 let initialized: Promise<void> | undefined;
 
 async function openDatabase(): Promise<void> {
   if (database) return;
-  SQL ??= await initSqlJs({
-    locateFile: (file) => require.resolve(`sql.js/dist/${file}`),
+  SQL ??= await initializeSqlJs({
+    locateFile: (file) => appRequire.resolve(`sql.js/dist/${file}`),
   });
   fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
   database = new SQL.Database(
-    fs.existsSync(DB_PATH) ? new Uint8Array(fs.readFileSync(DB_PATH)) : undefined,
+    fs.existsSync(/*turbopackIgnore: true*/ DB_PATH)
+      ? new Uint8Array(fs.readFileSync(/*turbopackIgnore: true*/ DB_PATH))
+      : undefined,
   );
 }
 
 export async function ensureDatabase(): Promise<void> {
-  initialized ??= openDatabase().then(() => {
+  initialized ??= (async () => {
+    if (!config.db_dir) {
+      config.db_dir = DB_DIR;
+      saveConfig(config);
+    }
+    await openDatabase();
     database.run(
       "CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value BLOB NOT NULL)",
     );
@@ -88,7 +95,7 @@ export async function ensureDatabase(): Promise<void> {
       persist();
     }
     persist();
-  });
+  })();
   await initialized;
 }
 
@@ -233,7 +240,7 @@ export async function saveDbMetadata(key: string, value: Uint8Array): Promise<vo
 }
 
 export async function statusDatabaseFound(): Promise<boolean> {
-  return fs.existsSync(DB_PATH);
+  return fs.existsSync(/*turbopackIgnore: true*/ DB_PATH);
 }
 
 export async function changeDbLocation(newDir: string): Promise<void> {
@@ -250,7 +257,9 @@ export async function changeDbLocation(newDir: string): Promise<void> {
   DB_PATH = nextPath;
   config = nextConfig;
   persist();
-  if (previousPath !== nextPath && fs.existsSync(previousPath)) fs.rmSync(previousPath);
+  if (previousPath !== nextPath && fs.existsSync(/*turbopackIgnore: true*/ previousPath)) {
+    fs.rmSync(/*turbopackIgnore: true*/ previousPath);
+  }
 }
 
 export async function selectDatabaseFile(filePath: string): Promise<void> {

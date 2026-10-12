@@ -14,14 +14,14 @@ type KeyboxElectronBridge = {
   apiRequest?: (url: string, options?: ApiRequestOptions) => Promise<ElectronApiResponse>;
 };
 
-/** Send packaged-app API calls through Electron's main process. */
+/** Send desktop API calls through Electron so the session token stays in the main process. */
 export async function apiFetch(url: string, options: ApiRequestOptions = {}): Promise<Response> {
   const bridge = typeof window === "undefined"
     ? undefined
     : (window as Window & { electron?: KeyboxElectronBridge }).electron;
 
   if (!bridge?.apiRequest) {
-    // The development backend is loopback-only and may be run without Electron.
+    // Next.js handles the API route; only Electron can add the per-launch token.
     return fetch(url, options);
   }
 

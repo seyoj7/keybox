@@ -7,14 +7,10 @@ const http = require("http");
 const path = require("path");
 
 const APP_HOST = "127.0.0.1";
-const BACKEND_PORT = 8000;
 const FRONTEND_PORT = 3000;
 const STARTUP_TIMEOUT_MS = 45_000;
 const isPackaged = app.isPackaged;
 const resourcesPath = isPackaged ? process.resourcesPath : path.resolve(__dirname, "..");
-const backendScriptPath = isPackaged
-  ? path.join(resourcesPath, "backend", "server.js")
-  : path.join(resourcesPath, "dist", "backend", "server.js");
 const nextAppDir = isPackaged
   ? path.join(resourcesPath, "app")
   : resourcesPath;
@@ -25,7 +21,6 @@ const configPath = path.join(userDataPath, "config.json");
 const backendToken = crypto.randomBytes(32).toString("hex");
 
 let mainWindow = null;
-let backendProcess = null;
 let nextProcess = null;
 let isQuitting = false;
 
@@ -92,30 +87,6 @@ function startChild(executable, args, options, label) {
   return child;
 }
 
-async function startBackend() {
-  if (!fs.existsSync(backendScriptPath)) throw new Error(`Backend entry point is missing: ${backendScriptPath}`);
-  fs.mkdirSync(userDataPath, { recursive: true });
-
-  const env = { ...process.env };
-  env.KEYBOX_DATA_DIR = userDataPath;
-  env.KEYBOX_CONFIG_PATH = isPackaged ? configPath : path.join(resourcesPath, "backend", "config.json");
-  env.KEYBOX_API_TOKEN = backendToken;
-  env.ELECTRON_RUN_AS_NODE = "1";
-  env.NODE_OPTIONS = `${env.NODE_OPTIONS ? `${env.NODE_OPTIONS} ` : ""}--conditions=react-server`;
-  backendProcess = startChild(
-    process.execPath,
-    [backendScriptPath],
-    { cwd: resourcesPath, env },
-    "Backend",
-  );
-  await waitForService(
-    backendProcess,
-    `http://${APP_HOST}:${BACKEND_PORT}/api/status`,
-    "Backend",
-    { "X-Keybox-Token": backendToken },
-  );
-}
-
 async function startNextServer() {
   const nextEntry = isPackaged ? serverPath : nextCliPath;
   if (!fs.existsSync(nextEntry)) {
@@ -127,6 +98,9 @@ async function startNextServer() {
     PORT: String(FRONTEND_PORT),
     HOSTNAME: APP_HOST,
     NODE_ENV: isPackaged ? "production" : "development",
+    KEYBOX_API_TOKEN: backendToken,
+    KEYBOX_DATA_DIR: userDataPath,
+    KEYBOX_CONFIG_PATH: isPackaged ? configPath : path.join(resourcesPath, "backend", "config.json"),
   };
   env.ELECTRON_RUN_AS_NODE = "1";
 
@@ -204,7 +178,7 @@ function registerIpcHandlers() {
     const body = typeof options.body === "string" ? options.body : undefined;
 
     try {
-      const response = await fetch(`http://${APP_HOST}:${BACKEND_PORT}${targetUrl.pathname}${targetUrl.search}`, {
+      const response = await fetch(`http://${APP_HOST}:${FRONTEND_PORT}${targetUrl.pathname}${targetUrl.search}`, {
         method,
         headers,
         body: method === "GET" ? undefined : body,
@@ -215,11 +189,11 @@ function registerIpcHandlers() {
         body: await response.text(),
       };
     } catch (error) {
-      console.error("[Electron] Backend request failed:", error);
+      console.error("[Electron] API request failed:", error);
       return {
         status: 503,
         contentType: "application/json",
-        body: JSON.stringify({ detail: "The local Keybox backend is unavailable." }),
+        body: JSON.stringify({ detail: "The local Keybox API is unavailable." }),
       };
     }
   });
@@ -307,15 +281,13 @@ if (!hasSingleInstance) {
   app.on("before-quit", () => {
     isQuitting = true;
     stopChild(nextProcess, "Next.js");
-    stopChild(backendProcess, "Backend");
   });
   app.on("window-all-closed", () => app.quit());
 
   app.whenReady().then(async () => {
     createWindow();
     try {
-      // Neither local service depends on the other, so start them together.
-      await Promise.all([startBackend(), startNextServer()]);
+      await startNextServer();
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.loadURL(`http://${APP_HOST}:${FRONTEND_PORT}`);
       }

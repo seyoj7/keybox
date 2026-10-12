@@ -1,5 +1,5 @@
 import "server-only";
-import { decrypt, encrypt } from "./crypto";
+import { decrypt, encrypt } from "./password_generator";
 import * as db from "./db";
 
 type EntryData = {

@@ -4,14 +4,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   distDir: "dist/next",
 
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: "http://127.0.0.1:8000/api/:path*",
-      },
-    ];
-  },
+  serverExternalPackages: ["sql.js", "hash-wasm"],
 };
 
 export default nextConfig;
