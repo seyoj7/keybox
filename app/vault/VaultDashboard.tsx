@@ -84,8 +84,12 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
   const [visiblePasswords, setVisiblePasswords] = useState<Record<number, boolean>>({});
   const [entries, setEntries] = useState<VaultEntry[]>([]);
   const [draggedEntryId, setDraggedEntryId] = useState<number | null>(null);
+  const [dragOverEntryId, setDragOverEntryId] = useState<number | null>(null);
+  const [dragDropPosition, setDragDropPosition] = useState<'above' | 'below' | null>(null);
   const [profileOrder, setProfileOrder] = useState<string[]>([]);
   const [draggedProfileName, setDraggedProfileName] = useState<string | null>(null);
+  const [dragOverProfileName, setDragOverProfileName] = useState<string | null>(null);
+  const [dragProfilePosition, setDragProfilePosition] = useState<'above' | 'below' | null>(null);
   const [decryptedPasswords, setDecryptedPasswords] = useState<Record<number, string>>({});
 
   const tileIconFileInputRef = useRef<HTMLInputElement>(null);
@@ -234,7 +238,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
 
   const activeProfile = profiles.find(p => p.name === selectedProfile?.name) || selectedProfile;
 
-  const reorderEntries = useCallback(async (targetEntryId: number) => {
+  const reorderEntries = useCallback(async (targetEntryId: number, position: 'above' | 'below' | null = null) => {
     if (draggedEntryId === null || draggedEntryId === targetEntryId) return;
     const currentProfileIds = activeProfile?.accounts.map((entry) => entry.id) ?? [];
     const fromIndex = currentProfileIds.indexOf(draggedEntryId);
@@ -244,7 +248,21 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
     const profileEntries = entries.filter((entry) => currentProfileIds.includes(entry.id));
     if (profileEntries.length !== currentProfileIds.length) return;
     const reorderedProfileEntries = [...profileEntries];
-    reorderedProfileEntries.splice(toIndex, 0, reorderedProfileEntries.splice(fromIndex, 1)[0]);
+    const [movedEntry] = reorderedProfileEntries.splice(fromIndex, 1);
+    const targetIdxAfterRemoval = reorderedProfileEntries.findIndex((e) => e.id === targetEntryId);
+    if (targetIdxAfterRemoval === -1) return;
+
+    const effectivePosition = position ?? (fromIndex < toIndex ? 'below' : 'above');
+    const insertIndex = effectivePosition === 'above' ? targetIdxAfterRemoval : targetIdxAfterRemoval + 1;
+
+    if (fromIndex === insertIndex) {
+      setDraggedEntryId(null);
+      setDragOverEntryId(null);
+      setDragDropPosition(null);
+      return;
+    }
+
+    reorderedProfileEntries.splice(insertIndex, 0, movedEntry);
     let profileIndex = 0;
     const reorderedEntries = entries.map((entry) => currentProfileIds.includes(entry.id)
       ? reorderedProfileEntries[profileIndex++]
@@ -252,6 +270,8 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
     if (reorderedEntries.some((entry) => !entry)) return;
     setEntries(reorderedEntries);
     setDraggedEntryId(null);
+    setDragOverEntryId(null);
+    setDragDropPosition(null);
 
     try {
       const response = await apiFetch('/api/entries/order', {
@@ -266,15 +286,31 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
     }
   }, [activeProfile, draggedEntryId, entries]);
 
-  const reorderProfiles = useCallback(async (targetProfileName: string) => {
+  const reorderProfiles = useCallback(async (targetProfileName: string, position: 'above' | 'below' | null = null) => {
     if (draggedProfileName === null || draggedProfileName === targetProfileName) return;
     const reorderedNames = profiles.map((profile) => profile.name);
     const fromIndex = reorderedNames.indexOf(draggedProfileName);
     const toIndex = reorderedNames.indexOf(targetProfileName);
     if (fromIndex < 0 || toIndex < 0) return;
-    reorderedNames.splice(toIndex, 0, reorderedNames.splice(fromIndex, 1)[0]);
+    const [movedName] = reorderedNames.splice(fromIndex, 1);
+    const targetIdxAfterRemoval = reorderedNames.indexOf(targetProfileName);
+    if (targetIdxAfterRemoval === -1) return;
+
+    const effectivePosition = position ?? (fromIndex < toIndex ? 'below' : 'above');
+    const insertIndex = effectivePosition === 'above' ? targetIdxAfterRemoval : targetIdxAfterRemoval + 1;
+
+    if (fromIndex === insertIndex) {
+      setDraggedProfileName(null);
+      setDragOverProfileName(null);
+      setDragProfilePosition(null);
+      return;
+    }
+
+    reorderedNames.splice(insertIndex, 0, movedName);
     setProfileOrder(reorderedNames);
     setDraggedProfileName(null);
+    setDragOverProfileName(null);
+    setDragProfilePosition(null);
 
     try {
       const response = await apiFetch('/api/profile-order', {
@@ -851,19 +887,83 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
             return (
               <div
                 key={profile.name + index}
-                className={`${styles.navItem} ${selectedProfile?.name === profile.name && activeView === 'vault' ? styles.active : ''} ${draggedProfileName === profile.name ? styles.navItemDragging : ''}`}
+                className={`${styles.navItem} ${selectedProfile?.name === profile.name && activeView === 'vault' ? styles.active : ''} ${
+                  draggedProfileName === profile.name ? styles.navItemDragging : ''
+                } ${
+                  dragOverProfileName === profile.name && draggedProfileName !== profile.name && dragProfilePosition === 'above'
+                    ? styles.navItemDropTargetAbove
+                    : ''
+                } ${
+                  dragOverProfileName === profile.name && draggedProfileName !== profile.name && dragProfilePosition === 'below'
+                    ? styles.navItemDropTargetBelow
+                    : ''
+                }`}
                 draggable
                 onDragStart={(event) => {
+                  const currentTarget = event.currentTarget;
+                  const rect = currentTarget.getBoundingClientRect();
+                  const offsetX = event.clientX - rect.left;
+                  const offsetY = event.clientY - rect.top;
+
+                  try {
+                    const clone = currentTarget.cloneNode(true) as HTMLElement;
+                    clone.className = `${styles.navItem} ${styles.navItemDragGhost}`;
+                    clone.style.width = `${rect.width}px`;
+                    clone.style.height = `${rect.height}px`;
+                    clone.style.position = 'fixed';
+                    clone.style.top = '0px';
+                    clone.style.left = '0px';
+                    clone.style.zIndex = '-9999';
+                    clone.style.pointerEvents = 'none';
+                    document.body.appendChild(clone);
+                    event.dataTransfer.setDragImage(clone, offsetX, offsetY);
+                    requestAnimationFrame(() => {
+                      clone.remove();
+                    });
+                  } catch {
+                    // Fallback to default drag preview
+                  }
+
                   setDraggedProfileName(profile.name);
                   event.dataTransfer.effectAllowed = 'move';
                 }}
-                onDragOver={(event) => event.preventDefault()}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                  if (draggedProfileName === null || draggedProfileName === profile.name) return;
+
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  const midY = rect.top + rect.height / 2;
+                  const pos = event.clientY < midY ? 'above' : 'below';
+
+                  if (dragOverProfileName !== profile.name || dragProfilePosition !== pos) {
+                    setDragOverProfileName(profile.name);
+                    setDragProfilePosition(pos);
+                  }
+                }}
+                onDragLeave={(event) => {
+                  const related = event.relatedTarget as Node | null;
+                  if (related && event.currentTarget.contains(related)) {
+                    return;
+                  }
+                  if (dragOverProfileName === profile.name) {
+                    setDragOverProfileName(null);
+                    setDragProfilePosition(null);
+                  }
+                }}
                 onDrop={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
-                  void reorderProfiles(profile.name);
+                  const pos = dragProfilePosition;
+                  setDragOverProfileName(null);
+                  setDragProfilePosition(null);
+                  void reorderProfiles(profile.name, pos);
                 }}
-                onDragEnd={() => setDraggedProfileName(null)}
+                onDragEnd={() => {
+                  setDraggedProfileName(null);
+                  setDragOverProfileName(null);
+                  setDragProfilePosition(null);
+                }}
                 onClick={() => {
                   setSelectedProfile(profile);
                   setInlineEditId(null);
@@ -886,6 +986,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
                     className={styles.editProfileBtn}
                     onClick={(e) => handleStartEditProfile(e, profile)}
                     title="Edit Profile"
+                    draggable={false}
                   >
                     <Edit2 size={12} />
                   </button>
@@ -902,6 +1003,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
                     onContextMenu={(e) => e.preventDefault()}
                     title="Delete"
                     disabled={isDeletingProfileName === profile.name}
+                    draggable={false}
                   >
                     <svg className={styles.holdProgressRing} viewBox="0 0 32 32">
                       <circle className={styles.holdProgressBg} cx="16" cy="16" r="13" />
@@ -981,18 +1083,80 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
                   return (
                   <div
                     key={item.id}
-                    className={`${styles.tile} ${draggedEntryId === item.id ? styles.tileDragging : ''}`}
+                    className={`${styles.tile} ${draggedEntryId === item.id ? styles.tileDragging : ''} ${
+                      dragOverEntryId === item.id && draggedEntryId !== item.id && dragDropPosition === 'above'
+                        ? styles.tileDropTargetAbove
+                        : ''
+                    } ${
+                      dragOverEntryId === item.id && draggedEntryId !== item.id && dragDropPosition === 'below'
+                        ? styles.tileDropTargetBelow
+                        : ''
+                    }`}
                     draggable={inlineEditId !== item.id}
                     onDragStart={(event) => {
+                      const currentTarget = event.currentTarget;
+                      const rect = currentTarget.getBoundingClientRect();
+                      const offsetX = event.clientX - rect.left;
+                      const offsetY = event.clientY - rect.top;
+
+                      try {
+                        const clone = currentTarget.cloneNode(true) as HTMLElement;
+                        clone.className = `${styles.tile} ${styles.tileDragGhost}`;
+                        clone.style.width = `${rect.width}px`;
+                        clone.style.height = `${rect.height}px`;
+                        clone.style.position = 'fixed';
+                        clone.style.top = '0px';
+                        clone.style.left = '0px';
+                        clone.style.zIndex = '-9999';
+                        clone.style.pointerEvents = 'none';
+                        document.body.appendChild(clone);
+                        event.dataTransfer.setDragImage(clone, offsetX, offsetY);
+                        requestAnimationFrame(() => {
+                          clone.remove();
+                        });
+                      } catch {
+                        // Fallback to default drag preview
+                      }
+
                       setDraggedEntryId(item.id);
                       event.dataTransfer.effectAllowed = 'move';
                     }}
-                    onDragOver={(event) => event.preventDefault()}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+                      if (draggedEntryId === null || draggedEntryId === item.id) return;
+
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      const midY = rect.top + rect.height / 2;
+                      const pos = event.clientY < midY ? 'above' : 'below';
+
+                      if (dragOverEntryId !== item.id || dragDropPosition !== pos) {
+                        setDragOverEntryId(item.id);
+                        setDragDropPosition(pos);
+                      }
+                    }}
+                    onDragLeave={(event) => {
+                      const related = event.relatedTarget as Node | null;
+                      if (related && event.currentTarget.contains(related)) {
+                        return;
+                      }
+                      if (dragOverEntryId === item.id) {
+                        setDragOverEntryId(null);
+                        setDragDropPosition(null);
+                      }
+                    }}
                     onDrop={(event) => {
                       event.preventDefault();
-                      void reorderEntries(item.id);
+                      const pos = dragDropPosition;
+                      setDragOverEntryId(null);
+                      setDragDropPosition(null);
+                      void reorderEntries(item.id, pos);
                     }}
-                    onDragEnd={() => setDraggedEntryId(null)}
+                    onDragEnd={() => {
+                      setDraggedEntryId(null);
+                      setDragOverEntryId(null);
+                      setDragDropPosition(null);
+                    }}
                   >
                     <div className={styles.tileIconContainer}>
                       <div className={styles.tileIconWrapper} style={{ color: item.color || '#818cf8' }}>
@@ -1036,6 +1200,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
                       <button
                         onClick={(e) => togglePassword(e, item.id)}
                         className={styles.tilePasswordToggleBtn}
+                        draggable={false}
                       >
                         {visiblePasswords[item.id] ? <EyeOff size={14} /> : <Eye size={14} />}
                       </button>
@@ -1046,6 +1211,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
                         className={styles.tileEditBtn}
                         onClick={(e) => handleEditEntry(e, item)}
                         title="Edit entry"
+                        draggable={false}
                       >
                         <Edit2 size={14} className={styles.actionIcon} />
                       </button>
@@ -1062,6 +1228,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
                         onContextMenu={(e) => e.preventDefault()}
                         title="Delete"
                         disabled={isDeletingId === item.id}
+                        draggable={false}
                       >
                         <svg className={styles.holdProgressRing} viewBox="0 0 32 32">
                           <circle className={styles.holdProgressBg} cx="16" cy="16" r="13" />
