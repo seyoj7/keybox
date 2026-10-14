@@ -5,7 +5,11 @@ import os from "node:os";
 import path from "node:path";
 import type { Database, SqlJsStatic, SqlValue } from "sql.js";
 
-type Config = { db_dir?: string; [key: string]: unknown };
+export type AppSettings = {
+  theme: "dark" | "light" | "system";
+  autoLock: "5" | "15" | "60" | "never";
+};
+type Config = { db_dir?: string; theme?: string; autoLock?: string; [key: string]: unknown };
 const defaultDataDir =
   process.env.APPDATA && process.platform === "win32"
     ? path.join(process.env.APPDATA, "keybox")
@@ -48,6 +52,20 @@ function saveConfig(config: Config): void {
 }
 
 let config = loadConfig();
+const validThemes = ["dark", "light", "system"] as const;
+const validAutoLocks = ["5", "15", "60", "never"] as const;
+export function getAppSettings(): AppSettings {
+  return {
+    theme: validThemes.includes(config.theme as AppSettings["theme"]) ? config.theme as AppSettings["theme"] : "system",
+    autoLock: validAutoLocks.includes(config.autoLock as AppSettings["autoLock"])
+      ? config.autoLock as AppSettings["autoLock"]
+      : "5",
+  };
+}
+export function saveAppSettings(settings: AppSettings): void {
+  config = { ...loadConfig(), theme: settings.theme, autoLock: settings.autoLock };
+  saveConfig(config);
+}
 export let DB_DIR = path.resolve(
   /*turbopackIgnore: true*/
   config.db_dir || process.env.KEYBOX_DATA_DIR || defaultDataDir,

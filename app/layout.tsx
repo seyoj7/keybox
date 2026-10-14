@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { PreferenceBootstrap } from "./components/PreferenceBootstrap";
 
 export const metadata: Metadata = {
   title: "Keybox - Password Manager",
@@ -33,7 +34,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body>{children}</body>
+      <body><PreferenceBootstrap />{children}</body>
     </html>
   );
 }

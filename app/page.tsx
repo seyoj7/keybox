@@ -150,59 +150,6 @@ export default function Home() {
     setConfirmPassword("");
   }, []);
 
-  const handleOpenHello = useCallback(async () => {
-    try {
-      if (!window.PublicKeyCredential) {
-        throw new Error("Windows Hello (WebAuthn) is not supported on this device.");
-      }
-
-      setError(null);
-
-      const challenge = new Uint8Array(32);
-      window.crypto.getRandomValues(challenge);
-
-      const userId = new Uint8Array(16);
-      window.crypto.getRandomValues(userId);
-
-      // Trigger the native Windows Hello / OS authentication prompt
-      await navigator.credentials.create({
-        publicKey: {
-          challenge,
-          rp: {
-            name: "Keybox Vault",
-          },
-          user: {
-            id: userId,
-            name: "user@keybox.local",
-            displayName: "Keybox User",
-          },
-          pubKeyCredParams: [
-            { type: "public-key", alg: -7 },
-            { type: "public-key", alg: -257 }
-          ],
-          authenticatorSelection: {
-            authenticatorAttachment: "platform",
-            userVerification: "required",
-          },
-          timeout: 60000,
-        }
-      });
-
-      // In a production environment, Windows Hello (WebAuthn) should use the PRF extension 
-      // to derive a key to decrypt the vault, rather than caching the master password.
-      // Since caching the master password in plain text is a security risk, 
-      // this feature is disabled until PRF is implemented.
-      throw new Error("Windows Hello is currently disabled for security. Please use your master password.");
-    } catch (err: unknown) {
-      console.error(err);
-      if (err instanceof Error && err.name === "NotAllowedError") {
-        setError("Windows Hello authentication was cancelled.");
-      } else {
-        setError(err instanceof Error ? err.message : "Failed to authenticate with Windows Hello.");
-      }
-    }
-  }, []);
-
   // ── Unlocked state: Vault dashboard ───────────────────────
 
   if (isUnlocked) {
@@ -346,17 +293,14 @@ export default function Home() {
 
           {isVaultInitialized !== false && (
             <>
-              {/* "or" Divider */}
               <div className={styles.dividerContainer}>
                 <div className={styles.dividerLine} />
                 <span className={styles.dividerText}>or</span>
                 <div className={styles.dividerLine} />
               </div>
-
-              {/* Windows Hello Card */}
               <SpecularButton
                 type="button"
-                onClick={handleOpenHello}
+                disabled
                 size="lg"
                 radius={16}
                 tint="var(--bg-surface)"
@@ -381,12 +325,13 @@ export default function Home() {
                   </div>
                   <div className={styles.helloTextContainer}>
                     <div className={styles.helloTitle}>Use Windows Hello</div>
-                    <div className={styles.helloSubtitle}>Sign in with your fingerprint</div>
+                    <div className={styles.helloSubtitle}>Unavailable for now</div>
                   </div>
                 </div>
               </SpecularButton>
             </>
           )}
+
         </div>
 
         {/* Footer */}

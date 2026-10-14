@@ -169,6 +169,11 @@
   align-items: center;
 }
 
+.helloCard:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 .helloContent {
   display: flex;
   align-items: center;

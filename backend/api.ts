@@ -86,6 +86,20 @@ async function dispatch(request: Request): Promise<Response> {
   const path = url.pathname;
   const body = method === "GET" || method === "DELETE" ? {} : await readBody(request);
 
+  if (method === "GET" && path === "/api/settings")
+    return json(200, db.getAppSettings());
+  if (method === "PUT" && path === "/api/settings") {
+    const current = db.getAppSettings();
+    const theme = body.theme ?? current.theme;
+    const autoLock = body.autoLock ?? current.autoLock;
+    if (!(theme === "dark" || theme === "light" || theme === "system"))
+      throw new ApiError(422, "theme must be dark, light, or system.");
+    if (!(autoLock === "5" || autoLock === "15" || autoLock === "60" || autoLock === "never"))
+      throw new ApiError(422, "autoLock must be 5, 15, 60, or never.");
+    db.saveAppSettings({ theme, autoLock });
+    return json(200, { status: "updated" });
+  }
+
   if (method === "GET" && path === "/api/status") {
     const database_found = await db.statusDatabaseFound();
     return json(200, {

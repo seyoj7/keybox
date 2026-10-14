@@ -10,7 +10,7 @@ Keybox is a local password manager with a Next.js interface, a TypeScript vault 
 - Keep the database in the default per-user data folder or move it to another directory.
 - Choose a dark, light, or system theme.
 
-Windows Hello is not currently a working vault-unlock method. The login screen may show its option, but biometric unlock is not implemented; use the master password.
+Windows Hello biometric unlock is unavailable. Use the master password to unlock the vault.
 
 ## Requirements
 

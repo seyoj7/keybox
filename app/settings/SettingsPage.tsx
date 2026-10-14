@@ -10,22 +10,47 @@ interface SettingsPageProps {
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ onLockVault }) => {
   const [theme, setTheme] = useState<string>('system');
+  const [autoLock, setAutoLock] = useState('5');
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') || 'system';
-    setTheme(savedTheme);
+    apiFetch('/api/settings')
+      .then(res => res.ok ? res.json() : Promise.reject(new Error('Unable to load settings')))
+      .then(data => {
+        const savedTheme = ['dark', 'light', 'system'].includes(data.theme) ? data.theme : (localStorage.getItem('theme') || 'system');
+        setTheme(savedTheme);
+        setAutoLock(['5', '15', '60', 'never'].includes(data.autoLock) ? data.autoLock : '5');
+        localStorage.setItem('theme', savedTheme);
+      })
+      .catch(err => console.error('Failed to load settings', err));
   }, []);
 
-  const handleThemeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newTheme = e.target.value;
+  const saveSettings = async (next: { theme?: string; autoLock?: string }) => {
+    const res = await apiFetch('/api/settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next),
+    });
+    if (!res.ok) console.error('Failed to save settings');
+  };
+
+  const applyTheme = (newTheme: string) => {
     setTheme(newTheme);
     localStorage.setItem('theme', newTheme);
-    
+    void saveSettings({ theme: newTheme });
     if (newTheme === 'dark' || (newTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       document.documentElement.setAttribute('data-theme', 'dark');
     } else {
       document.documentElement.setAttribute('data-theme', 'light');
     }
+  };
+
+  const handleThemeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newTheme = e.target.value;
+    applyTheme(newTheme);
+  };
+
+  const handleAutoLockChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const next = e.target.value;
+    setAutoLock(next);
+    void saveSettings({ autoLock: next });
   };
 
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -160,11 +185,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onLockVault }) => {
               <p className={styles.settingDesc}>Lock after a period of inactivity.</p>
             </div>
             <div className={styles.settingControl}>
-              <select className={styles.select}>
-                <option>5 minutes</option>
-                <option>15 minutes</option>
-                <option>1 hour</option>
-                <option>Never</option>
+              <select className={styles.select} value={autoLock} onChange={handleAutoLockChange}>
+                <option value="5">5 minutes</option>
+                <option value="15">15 minutes</option>
+                <option value="60">1 hour</option>
+                <option value="never">Never</option>
               </select>
             </div>
           </div>
