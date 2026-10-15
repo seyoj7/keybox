@@ -111,9 +111,11 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
     phrase: string;
     profile: string;
   } | null>(null);
-  const [visiblePhrases, setVisiblePhrases] = useState<Record<number, string>>(
-    {},
-  );
+  const [revealedPhrase, setRevealedPhrase] = useState<{
+    id: number;
+    phrase: string;
+  } | null>(null);
+  const phraseAutoClearRef = useRef<NodeJS.Timeout | null>(null);
   const [phraseError, setPhraseError] = useState("");
   const [inlineEditData, setInlineEditData] = useState<{
     website: string;
@@ -131,9 +133,11 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
     Record<string, ProfileMetadata>
   >({});
   const [createdProfiles, setCreatedProfiles] = useState<Profile[]>([]);
-  const [visiblePasswords, setVisiblePasswords] = useState<
-    Record<number, string>
-  >({});
+  const [revealedPassword, setRevealedPassword] = useState<{
+    id: number;
+    password: string;
+  } | null>(null);
+  const passwordAutoClearRef = useRef<NodeJS.Timeout | null>(null);
   const [entries, setEntries] = useState<VaultEntry[]>([]);
   const [draggedEntryId, setDraggedEntryId] = useState<number | null>(null);
   const [dragOverEntryId, setDragOverEntryId] = useState<number | null>(null);
@@ -196,6 +200,25 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
       .catch((error) => console.error("Failed to load profile order:", error));
   }, [onLockVault]);
 
+  // Auto-clear timers: wipe plaintext from state after 30 seconds
+  const clearRevealedPassword = useCallback(() => {
+    if (passwordAutoClearRef.current) clearTimeout(passwordAutoClearRef.current);
+    passwordAutoClearRef.current = null;
+    setRevealedPassword(null);
+  }, []);
+  const clearRevealedPhrase = useCallback(() => {
+    if (phraseAutoClearRef.current) clearTimeout(phraseAutoClearRef.current);
+    phraseAutoClearRef.current = null;
+    setRevealedPhrase(null);
+  }, []);
+  useEffect(() => {
+    return () => {
+      // Wipe all plaintext on unmount
+      if (passwordAutoClearRef.current) clearTimeout(passwordAutoClearRef.current);
+      if (phraseAutoClearRef.current) clearTimeout(phraseAutoClearRef.current);
+    };
+  }, []);
+
   const refreshSeedPhrases = useCallback(async () => {
     setSeedPhrases(await fetchSeedPhrases());
   }, []);
@@ -219,12 +242,8 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
       );
       if (!response.ok) throw new Error("Could not save this wallet phrase.");
       await refreshSeedPhrases();
-      if (phraseForm.id !== undefined) {
-        setVisiblePhrases((previous) => {
-          const next = { ...previous };
-          delete next[phraseForm.id!];
-          return next;
-        });
+      if (phraseForm.id !== undefined && revealedPhrase?.id === phraseForm.id) {
+        clearRevealedPhrase();
       }
       setPhraseForm(null);
     } catch (error) {
@@ -234,22 +253,26 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
   }, [phraseForm, refreshSeedPhrases]);
   const revealSeedPhrase = useCallback(
     async (id: number) => {
-      if (visiblePhrases[id]) {
-        setVisiblePhrases((previous) => {
-          const next = { ...previous };
-          delete next[id];
-          return next;
-        });
+      // Toggle off if already revealed
+      if (revealedPhrase?.id === id) {
+        clearRevealedPhrase();
         return;
       }
+      // Always fetch fresh from the database
       try {
         const phrase = await fetchSeedPhraseDetails(id);
-        setVisiblePhrases((previous) => ({ ...previous, [id]: phrase.phrase }));
+        clearRevealedPhrase();
+        setRevealedPhrase({ id, phrase: phrase.phrase });
+        // Auto-clear after 30 seconds
+        phraseAutoClearRef.current = setTimeout(() => {
+          setRevealedPhrase(null);
+          phraseAutoClearRef.current = null;
+        }, 30_000);
       } catch (error) {
         console.error("Failed to reveal seed phrase:", error);
       }
     },
-    [visiblePhrases],
+    [revealedPhrase, clearRevealedPhrase],
   );
   const editSeedPhrase = useCallback(async (entry: SeedPhraseEntry) => {
     try {
@@ -271,38 +294,34 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
     });
     if (!response.ok) return;
     setSeedPhrases((prev) => prev.filter((item) => item.id !== id));
-    setVisiblePhrases((previous) => {
-      const next = { ...previous };
-      delete next[id];
-      return next;
-    });
-  }, []);
+    if (revealedPhrase?.id === id) clearRevealedPhrase();
+  }, [revealedPhrase, clearRevealedPhrase]);
 
   const togglePassword = useCallback(
     async (e: React.MouseEvent, id: number) => {
       e.stopPropagation();
 
-      const isVisible = visiblePasswords[id] !== undefined;
-      if (isVisible) {
-        setVisiblePasswords((previous) => {
-          const next = { ...previous };
-          delete next[id];
-          return next;
-        });
+      // Toggle off if already revealed
+      if (revealedPassword?.id === id) {
+        clearRevealedPassword();
         return;
       }
 
+      // Always fetch fresh from the database
       try {
         const entry = await fetchEntryDetails(id);
-        setVisiblePasswords((previous) => ({
-          ...previous,
-          [id]: entry.password ?? "",
-        }));
+        clearRevealedPassword();
+        setRevealedPassword({ id, password: entry.password ?? "" });
+        // Auto-clear after 30 seconds
+        passwordAutoClearRef.current = setTimeout(() => {
+          setRevealedPassword(null);
+          passwordAutoClearRef.current = null;
+        }, 30_000);
       } catch (err) {
         console.error("Failed to decrypt entry:", err);
       }
     },
-    [visiblePasswords],
+    [revealedPassword, clearRevealedPassword],
   );
 
   const startHoldingDelete = useCallback(
@@ -325,11 +344,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
           if (!res.ok) throw new Error("Failed to delete entry");
           const updatedEntries = await fetchEntries();
           setEntries(updatedEntries);
-          setVisiblePasswords((prev) => {
-            const next = { ...prev };
-            delete next[entryId];
-            return next;
-          });
+          if (revealedPassword?.id === entryId) clearRevealedPassword();
         } catch (err) {
           console.error("Failed to delete entry:", err);
         } finally {
@@ -895,16 +910,13 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
           );
 
         setInlineEditId(null);
+        setInlineEditData({ website: "", username: "", password: "", icon: null });
         // Refresh entries
         const updatedEntries = await fetchEntries();
         setEntries(updatedEntries);
 
-        if (!isNew) {
-          setVisiblePasswords((previous) => {
-            const next = { ...previous };
-            delete next[entry.id];
-            return next;
-          });
+        if (!isNew && revealedPassword?.id === entry.id) {
+          clearRevealedPassword();
         }
       } catch (err) {
         console.error(err);
@@ -917,6 +929,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
 
   const handleCancelInline = useCallback(() => {
     setInlineEditId(null);
+    setInlineEditData({ website: "", username: "", password: "", icon: null });
   }, []);
 
   const renderInlineEdit = (item?: VaultEntry) => {
@@ -1547,23 +1560,23 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
                     </div>
                     <div className={styles.seedPhraseSecret}>
                       <code className={styles.seedPhraseWords}>
-                        {visiblePhrases[item.id] || "••••••••••••••••••••••••"}
+                        {(revealedPhrase?.id === item.id ? revealedPhrase.phrase : null) || "••••••••••••••••••••••••"}
                       </code>
                       <button
                         className={styles.tilePasswordToggleBtn}
                         title={
-                          visiblePhrases[item.id]
+                          revealedPhrase?.id === item.id
                             ? "Hide seed phrase"
                             : "Reveal seed phrase"
                         }
                         aria-label={
-                          visiblePhrases[item.id]
+                          revealedPhrase?.id === item.id
                             ? "Hide seed phrase"
                             : "Reveal seed phrase"
                         }
                         onClick={() => void revealSeedPhrase(item.id)}
                       >
-                        {visiblePhrases[item.id] ? (
+                        {revealedPhrase?.id === item.id ? (
                           <EyeOff size={14} />
                         ) : (
                           <Eye size={14} />
@@ -1790,9 +1803,9 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
                             className={styles.tilePasswordText}
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (visiblePasswords[item.id] !== undefined) {
+                              if (revealedPassword?.id === item.id) {
                                 navigator.clipboard.writeText(
-                                  visiblePasswords[item.id],
+                                  revealedPassword.password,
                                 );
                                 setFlashingPasswordId(item.id);
                                 setTimeout(() => {
@@ -1804,7 +1817,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
                             }}
                             style={{
                               cursor:
-                                visiblePasswords[item.id] !== undefined
+                                revealedPassword?.id === item.id
                                   ? "pointer"
                                   : "default",
                               opacity:
@@ -1813,19 +1826,19 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
                                   : undefined,
                             }}
                             title={
-                              visiblePasswords[item.id] !== undefined
+                              revealedPassword?.id === item.id
                                 ? "Click to copy password"
                                 : ""
                             }
                           >
-                            {visiblePasswords[item.id] ?? "••••••••"}
+                            {(revealedPassword?.id === item.id ? revealedPassword.password : null) ?? "••••••••"}
                           </span>
                           <button
                             onClick={(e) => togglePassword(e, item.id)}
                             className={styles.tilePasswordToggleBtn}
                             draggable={false}
                           >
-                            {visiblePasswords[item.id] !== undefined ? (
+                            {revealedPassword?.id === item.id ? (
                               <EyeOff size={14} />
                             ) : (
                               <Eye size={14} />

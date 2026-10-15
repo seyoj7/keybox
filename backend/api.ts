@@ -12,8 +12,10 @@ import { Vault } from "./vault";
 const apiToken = process.env.KEYBOX_API_TOKEN;
 const runtimeState = globalThis as typeof globalThis & {
   keyboxSessionKey?: Uint8Array | null;
+  keyboxAutoLockTimer?: ReturnType<typeof setTimeout> | null;
 };
 runtimeState.keyboxSessionKey ??= null;
+runtimeState.keyboxAutoLockTimer ??= null;
 
 class ApiError extends Error {
   constructor(
@@ -83,9 +85,31 @@ function getVault(): Vault {
   return new Vault(runtimeState.keyboxSessionKey);
 }
 
+function clearAutoLockTimer(): void {
+  if (runtimeState.keyboxAutoLockTimer) {
+    clearTimeout(runtimeState.keyboxAutoLockTimer);
+    runtimeState.keyboxAutoLockTimer = null;
+  }
+}
+
+function resetAutoLockTimer(): void {
+  clearAutoLockTimer();
+  if (!runtimeState.keyboxSessionKey) return;
+  const settings = db.getAppSettings();
+  if (settings.autoLock === "never") return;
+  const ms = Number(settings.autoLock) * 60_000;
+  runtimeState.keyboxAutoLockTimer = setTimeout(() => {
+    runtimeState.keyboxSessionKey?.fill(0);
+    runtimeState.keyboxSessionKey = null;
+    runtimeState.keyboxAutoLockTimer = null;
+  }, ms);
+}
+
 function setSessionKey(key: Uint8Array | null): void {
+  clearAutoLockTimer();
   runtimeState.keyboxSessionKey?.fill(0);
   runtimeState.keyboxSessionKey = key;
+  if (key) resetAutoLockTimer();
 }
 
 function isAuthorized(request: Request): boolean {
@@ -137,10 +161,16 @@ async function dispatch(request: Request): Promise<Response> {
   if (method === "POST" && path === "/api/init") {
     try {
       const password = requiredString(body, "password");
+      if (password.length < 12)
+        throw new ApiError(
+          422,
+          "Master password must be at least 12 characters.",
+        );
       await setupVault(password);
       setSessionKey(await unlockVault(password));
       return json(200, { status: "success" });
     } catch (error) {
+      if (error instanceof ApiError) throw error;
       throw new ApiError(
         error instanceof Error &&
           error.message === "Vault is already initialized."
@@ -169,6 +199,11 @@ async function dispatch(request: Request): Promise<Response> {
   if (method === "POST" && path === "/api/change-password") {
     try {
       const newPassword = requiredString(body, "new_password");
+      if (newPassword.length < 12)
+        throw new ApiError(
+          422,
+          "New password must be at least 12 characters.",
+        );
       await changeMasterPassword(
         requiredString(body, "old_password"),
         newPassword,
@@ -176,6 +211,7 @@ async function dispatch(request: Request): Promise<Response> {
       setSessionKey(await unlockVault(newPassword));
       return json(200, { status: "success" });
     } catch (error) {
+      if (error instanceof ApiError) throw error;
       throw new ApiError(
         401,
         error instanceof Error ? error.message : "Unable to change password.",
@@ -353,6 +389,8 @@ export async function handleApiRequest(request: Request): Promise<Response> {
     return json(401, {
       detail: "This local service only accepts requests from Keybox.",
     });
+  // Reset the server-side auto-lock timer on every authenticated request
+  if (runtimeState.keyboxSessionKey) resetAutoLockTimer();
   try {
     return await dispatch(request);
   } catch (error) {
