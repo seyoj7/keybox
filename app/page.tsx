@@ -13,19 +13,24 @@ import styles from "./page.module.css";
 
 // ── API helpers ─────────────────────────────────────────────
 
-async function readApiResponse(res: Response): Promise<Record<string, unknown>> {
+async function readApiResponse(
+  res: Response,
+): Promise<Record<string, unknown>> {
   const body = await res.text();
   try {
     const data: unknown = JSON.parse(body);
     return data && typeof data === "object"
-      ? data as Record<string, unknown>
+      ? (data as Record<string, unknown>)
       : { detail: String(data) };
   } catch {
     return { detail: body || `Server returned HTTP ${res.status}` };
   }
 }
 
-async function fetchVaultStatus(): Promise<{ initialized: boolean; databaseFound: boolean } | null> {
+async function fetchVaultStatus(): Promise<{
+  initialized: boolean;
+  databaseFound: boolean;
+} | null> {
   const res = await apiFetch("/api/status");
   if (!res.ok) return null;
   const data = await readApiResponse(res);
@@ -33,9 +38,10 @@ async function fetchVaultStatus(): Promise<{ initialized: boolean; databaseFound
     initialized: data.initialized === true,
     // Older backend processes only return `initialized`; an uninitialized vault
     // on those versions should still offer the database locator.
-    databaseFound: typeof data.database_found === "boolean"
-      ? data.database_found
-      : data.initialized === true,
+    databaseFound:
+      typeof data.database_found === "boolean"
+        ? data.database_found
+        : data.initialized === true,
   };
 }
 
@@ -46,7 +52,8 @@ async function initializeVault(password: string): Promise<void> {
     body: JSON.stringify({ password }),
   });
   const data = await readApiResponse(res);
-  if (!res.ok) throw new Error(String(data.detail || "Failed to initialize vault"));
+  if (!res.ok)
+    throw new Error(String(data.detail || "Failed to initialize vault"));
 }
 
 async function unlockVault(password: string): Promise<void> {
@@ -71,13 +78,20 @@ export default function Home() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isVaultInitialized, setIsVaultInitialized] = useState<boolean | null>(null);
+  const [isVaultInitialized, setIsVaultInitialized] = useState<boolean | null>(
+    null,
+  );
   const [isDatabaseFound, setIsDatabaseFound] = useState<boolean | null>(null);
   const [isImportingDatabase, setIsImportingDatabase] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const electronAPI = typeof window !== "undefined"
-    ? (window as unknown as { electron?: { locateDatabase?: () => Promise<string | null> } }).electron
-    : undefined;
+  const electronAPI =
+    typeof window !== "undefined"
+      ? (
+          window as unknown as {
+            electron?: { locateDatabase?: () => Promise<string | null> };
+          }
+        ).electron
+      : undefined;
 
   useEffect(() => {
     fetchVaultStatus()
@@ -102,14 +116,20 @@ export default function Home() {
         body: JSON.stringify(selectedPath ? { path: selectedPath } : {}),
       });
       const data = await readApiResponse(res);
-      if (!res.ok) throw new Error(String(data.detail || "Failed to locate the database"));
+      if (!res.ok)
+        throw new Error(String(data.detail || "Failed to locate the database"));
 
       const status = await fetchVaultStatus();
-      if (!status) throw new Error("Database was imported, but its status could not be read.");
+      if (!status)
+        throw new Error(
+          "Database was imported, but its status could not be read.",
+        );
       setIsDatabaseFound(status.databaseFound);
       setIsVaultInitialized(status.initialized);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to locate the database");
+      setError(
+        err instanceof Error ? err.message : "Failed to locate the database",
+      );
     } finally {
       setIsImportingDatabase(false);
     }
@@ -136,11 +156,12 @@ export default function Home() {
         }
         setIsUnlocked(true);
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "An error occurred";
+        const message =
+          err instanceof Error ? err.message : "An error occurred";
         setError(message);
       }
     },
-    [password, confirmPassword, isVaultInitialized]
+    [password, confirmPassword, isVaultInitialized],
   );
 
   const handleLockVault = useCallback(async () => {
@@ -172,7 +193,7 @@ export default function Home() {
         {/* Background Ambient Glowing Ribbon Wave */}
         <div className={styles.backgroundAura}>
           <div className={styles.baseDarkCanvas} />
-          <div style={{ position: 'absolute', inset: 0, opacity: 0.6 }}>
+          <div style={{ position: "absolute", inset: 0, opacity: 0.6 }}>
             <SideRays
               speed={2.5}
               rayColor1="#EAB308"
@@ -214,7 +235,9 @@ export default function Home() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={isSetupMode ? "Create Master Password" : "Master Password"}
+                placeholder={
+                  isSetupMode ? "Create Master Password" : "Master Password"
+                }
                 className={styles.passwordInput}
               />
               <button
@@ -223,7 +246,11 @@ export default function Home() {
                 title={showPassword ? "Hide password" : "Show password"}
                 className={styles.eyeButton}
               >
-                {showPassword ? <Eye className={styles.eyeIcon} /> : <EyeOff className={styles.eyeIcon} />}
+                {showPassword ? (
+                  <Eye className={styles.eyeIcon} />
+                ) : (
+                  <EyeOff className={styles.eyeIcon} />
+                )}
               </button>
             </div>
 
@@ -240,17 +267,21 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  title={showConfirmPassword ? "Hide password" : "Show password"}
+                  title={
+                    showConfirmPassword ? "Hide password" : "Show password"
+                  }
                   className={styles.eyeButton}
                 >
-                  {showConfirmPassword ? <Eye className={styles.eyeIcon} /> : <EyeOff className={styles.eyeIcon} />}
+                  {showConfirmPassword ? (
+                    <Eye className={styles.eyeIcon} />
+                  ) : (
+                    <EyeOff className={styles.eyeIcon} />
+                  )}
                 </button>
               </div>
             )}
 
-            {error && (
-              <div className={styles.errorMessage}>{error}</div>
-            )}
+            {error && <div className={styles.errorMessage}>{error}</div>}
 
             {/* Unlock Vault Button */}
             <SpecularButton
@@ -286,7 +317,9 @@ export default function Home() {
                 disabled={isImportingDatabase}
                 className={styles.locateDatabaseButton}
               >
-                {isImportingDatabase ? "Locating database…" : "Locate existing database"}
+                {isImportingDatabase
+                  ? "Locating database…"
+                  : "Locate existing database"}
               </button>
             </div>
           )}
@@ -325,18 +358,18 @@ export default function Home() {
                   </div>
                   <div className={styles.helloTextContainer}>
                     <div className={styles.helloTitle}>Use Windows Hello</div>
-                    <div className={styles.helloSubtitle}>Unavailable for now</div>
+                    <div className={styles.helloSubtitle}>
+                      Unavailable for now
+                    </div>
                   </div>
                 </div>
               </SpecularButton>
             </>
           )}
-
         </div>
 
         {/* Footer */}
         <Footer />
-
       </main>
     </div>
   );

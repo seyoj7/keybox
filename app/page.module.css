@@ -33,7 +33,12 @@
 .baseDarkCanvas {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at 50% 30%, var(--grad-inner) 0%, var(--grad-mid) 65%, var(--grad-outer) 100%);
+  background: radial-gradient(
+    ellipse at 50% 30%,
+    var(--grad-inner) 0%,
+    var(--grad-mid) 65%,
+    var(--grad-outer) 100%
+  );
 }
 
 .centerContent {

@@ -1,10 +1,5 @@
 import "server-only";
-import {
-  decrypt,
-  deriveKey,
-  encrypt,
-  generateSalt,
-} from "./crypto";
+import { decrypt, deriveKey, encrypt, generateSalt } from "./crypto";
 import * as db from "./db";
 import { Vault } from "./vault";
 
@@ -31,14 +26,18 @@ export async function setupVault(password: string): Promise<void> {
 }
 
 export async function unlockVault(password: string): Promise<Uint8Array> {
-  if (!(await isVaultInitialized())) throw new Error("Vault is not initialized.");
+  if (!(await isVaultInitialized()))
+    throw new Error("Vault is not initialized.");
   const salt = await db.getMetadata("master_salt");
   const nonce = await db.getMetadata("verification_nonce");
   const token = await db.getMetadata("verification_token");
   if (!salt || !nonce || !token) throw new Error("Vault is not initialized.");
   const key = await deriveKey(password, salt);
   try {
-    if (Buffer.from(decrypt(key, nonce, token)).toString("utf8") !== "KeyboxVerification")
+    if (
+      Buffer.from(decrypt(key, nonce, token)).toString("utf8") !==
+      "KeyboxVerification"
+    )
       throw new Error("Invalid master password.");
   } catch {
     key.fill(0);
@@ -56,6 +55,11 @@ export async function changeMasterPassword(
     const oldVault = new Vault(oldKey);
     const entries = await Promise.all(
       (await oldVault.listEntries()).map(({ id }) => oldVault.getEntry(id)),
+    );
+    const seedPhrases = await Promise.all(
+      (await oldVault.listSeedPhrases()).map(({ id }) =>
+        oldVault.getSeedPhrase(id),
+      ),
     );
     const salt = generateSalt();
     const newKey = await deriveKey(newPassword, salt);
@@ -75,7 +79,28 @@ export async function changeMasterPassword(
         }),
       );
       const encrypted = encrypt(newKey, payload);
-      await db.updatePasswordRow(entry.id, encrypted.ciphertext, encrypted.nonce);
+      await db.updatePasswordRow(
+        entry.id,
+        encrypted.ciphertext,
+        encrypted.nonce,
+      );
+    }
+    for (const phrase of seedPhrases) {
+      const encrypted = encrypt(
+        newKey,
+        Buffer.from(
+          JSON.stringify({
+            name: phrase.name,
+            phrase: phrase.phrase,
+            profile: phrase.profile ?? "Default",
+          }),
+        ),
+      );
+      await db.updateSeedPhraseRow(
+        phrase.id,
+        encrypted.ciphertext,
+        encrypted.nonce,
+      );
     }
     newKey.fill(0);
   } finally {

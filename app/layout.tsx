@@ -34,7 +34,10 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body><PreferenceBootstrap />{children}</body>
+      <body>
+        <PreferenceBootstrap />
+        {children}
+      </body>
     </html>
   );
 }

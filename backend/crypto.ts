@@ -1,9 +1,5 @@
 import "server-only";
-import {
-  createCipheriv,
-  createDecipheriv,
-  randomBytes,
-} from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { argon2id } from "hash-wasm";
 
 export function generateSalt(): Uint8Array {

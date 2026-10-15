@@ -14,7 +14,9 @@ type ElectronWindowAPI = {
   maximize: () => Promise<boolean>;
   close: () => Promise<void>;
   isMaximized: () => Promise<boolean>;
-  onWindowStateChanged?: (callback: (state: { maximized: boolean }) => void) => () => void;
+  onWindowStateChanged?: (
+    callback: (state: { maximized: boolean }) => void,
+  ) => () => void;
 };
 
 function getElectronAPI(): ElectronWindowAPI | undefined {
@@ -53,17 +55,22 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   const handleMinimize = useCallback(() => {
-    void getElectronAPI()?.minimize().catch((error) => {
-      console.error("Could not minimize Keybox:", error);
-    });
+    void getElectronAPI()
+      ?.minimize()
+      .catch((error) => {
+        console.error("Could not minimize Keybox:", error);
+      });
   }, []);
 
   const handleToggleMaximize = useCallback(() => {
     const electronAPI = getElectronAPI();
     if (electronAPI) {
-      void electronAPI.maximize().then(setIsMaximized).catch((error) => {
-        console.error("Could not change Keybox window size:", error);
-      });
+      void electronAPI
+        .maximize()
+        .then(setIsMaximized)
+        .catch((error) => {
+          console.error("Could not change Keybox window size:", error);
+        });
     } else {
       // Fallback for browser
       if (!document.fullscreenElement) {
@@ -77,9 +84,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   const handleClose = useCallback(() => {
-    void getElectronAPI()?.close().catch((error) => {
-      console.error("Could not close Keybox:", error);
-    });
+    void getElectronAPI()
+      ?.close()
+      .catch((error) => {
+        console.error("Could not close Keybox:", error);
+      });
   }, []);
 
   return (
@@ -87,17 +96,11 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Brand logo & name */}
       <div className={styles.brandGroup}>
         <div className={styles.logoContainer}>
-          <img
-            src="/logo.png"
-            alt="Keybox Logo"
-            className={styles.logoImage}
-          />
+          <img src="/logo.png" alt="Keybox Logo" className={styles.logoImage} />
         </div>
         <span className={styles.brandName}>Keybox</span>
 
-        {isUnlocked && (
-          <span className={styles.unlockedBadge}>Unlocked</span>
-        )}
+        {isUnlocked && <span className={styles.unlockedBadge}>Unlocked</span>}
       </div>
 
       {/* Window Controls */}

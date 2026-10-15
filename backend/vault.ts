@@ -15,6 +15,12 @@ export type VaultEntry = EntryData & {
   created_at: string;
   updated_at: string;
 };
+type SeedPhraseData = { name: string; phrase: string; profile?: string };
+export type VaultSeedPhrase = Omit<SeedPhraseData, "phrase"> & {
+  id: number;
+  created_at: string;
+  updated_at: string;
+};
 
 export class Vault {
   constructor(private readonly key: Uint8Array) {}
@@ -25,7 +31,9 @@ export class Vault {
     let data: EntryData;
     try {
       data = JSON.parse(
-        Buffer.from(decrypt(this.key, row.nonce, row.encrypted_data)).toString("utf8"),
+        Buffer.from(decrypt(this.key, row.nonce, row.encrypted_data)).toString(
+          "utf8",
+        ),
       ) as EntryData;
     } catch {
       throw new Error("Data tampering detected or incorrect key!");
@@ -46,7 +54,9 @@ export class Vault {
     for (const row of entries) {
       try {
         const data = JSON.parse(
-          Buffer.from(decrypt(this.key, row.nonce, row.encrypted_data)).toString("utf8"),
+          Buffer.from(
+            decrypt(this.key, row.nonce, row.encrypted_data),
+          ).toString("utf8"),
         ) as EntryData;
         result.push({
           id: row.id,
@@ -96,5 +106,74 @@ export class Vault {
 
   async deleteEntry(id: number): Promise<void> {
     await db.deletePasswordRow(id);
+  }
+
+  async listSeedPhrases(): Promise<VaultSeedPhrase[]> {
+    const result: VaultSeedPhrase[] = [];
+    for (const row of await db.listSeedPhraseRows()) {
+      try {
+        const data = JSON.parse(
+          Buffer.from(
+            decrypt(this.key, row.nonce, row.encrypted_data),
+          ).toString("utf8"),
+        ) as SeedPhraseData;
+        result.push({
+          id: row.id,
+          name: data.name,
+          profile: data.profile ?? "Default",
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        });
+      } catch {
+        console.warn(
+          `Warning: Seed phrase ${row.id} is corrupted or tampered with.`,
+        );
+      }
+    }
+    return result;
+  }
+  async getSeedPhrase(
+    id: number,
+  ): Promise<
+    SeedPhraseData & { id: number; created_at: string; updated_at: string }
+  > {
+    const row = await db.getSeedPhraseRow(id);
+    if (!row) throw new Error(`Seed phrase ${id} not found.`);
+    try {
+      const data = JSON.parse(
+        Buffer.from(decrypt(this.key, row.nonce, row.encrypted_data)).toString(
+          "utf8",
+        ),
+      ) as SeedPhraseData;
+      return {
+        ...data,
+        profile: data.profile ?? "Default",
+        id,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+    } catch {
+      throw new Error("Data tampering detected or incorrect key!");
+    }
+  }
+
+  async saveSeedPhrase(
+    data: SeedPhraseData,
+    id?: number,
+  ): Promise<number | void> {
+    if (id !== undefined) await this.getSeedPhrase(id);
+    const encrypted = encrypt(
+      this.key,
+      Buffer.from(
+        JSON.stringify({ ...data, profile: data.profile ?? "Default" }),
+      ),
+    );
+    if (id === undefined)
+      return db.addSeedPhraseRow(encrypted.ciphertext, encrypted.nonce);
+    await db.updateSeedPhraseRow(id, encrypted.ciphertext, encrypted.nonce);
+  }
+
+  async deleteSeedPhrase(id: number): Promise<void> {
+    await db.deleteSeedPhraseRow(id);
   }
 }

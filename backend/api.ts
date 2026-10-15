@@ -10,7 +10,9 @@ import * as db from "./db";
 import { Vault } from "./vault";
 
 const apiToken = process.env.KEYBOX_API_TOKEN;
-const runtimeState = globalThis as typeof globalThis & { keyboxSessionKey?: Uint8Array | null };
+const runtimeState = globalThis as typeof globalThis & {
+  keyboxSessionKey?: Uint8Array | null;
+};
 runtimeState.keyboxSessionKey ??= null;
 
 class ApiError extends Error {
@@ -23,19 +25,24 @@ class ApiError extends Error {
 }
 
 function json(status: number, value: unknown): Response {
-  return Response.json(value, { status, headers: { "Cache-Control": "no-store" } });
+  return Response.json(value, {
+    status,
+    headers: { "Cache-Control": "no-store" },
+  });
 }
 
 async function readBody(request: Request): Promise<Record<string, unknown>> {
   const contentLength = Number(request.headers.get("content-length") || 0);
-  if (contentLength > 1_048_576) throw new ApiError(413, "Request body is too large.");
+  if (contentLength > 1_048_576)
+    throw new ApiError(413, "Request body is too large.");
   const text = await request.text();
   if (Buffer.byteLength(text, "utf8") > 1_048_576)
     throw new ApiError(413, "Request body is too large.");
   if (!text) return {};
   try {
     const value: unknown = JSON.parse(text);
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      throw new Error();
     return value as Record<string, unknown>;
   } catch {
     throw new ApiError(400, "Request body must be valid JSON.");
@@ -53,14 +60,26 @@ function entryInput(body: Record<string, unknown>) {
     website: requiredString(body, "website"),
     username: requiredString(body, "username"),
     password: requiredString(body, "password"),
-    profile: body.profile === undefined ? "Default" : requiredString(body, "profile"),
+    profile:
+      body.profile === undefined ? "Default" : requiredString(body, "profile"),
     icon:
-      body.icon === undefined || body.icon === null ? null : requiredString(body, "icon"),
+      body.icon === undefined || body.icon === null
+        ? null
+        : requiredString(body, "icon"),
+  };
+}
+function seedPhraseInput(body: Record<string, unknown>) {
+  return {
+    name: requiredString(body, "name").trim(),
+    phrase: requiredString(body, "phrase").trim(),
+    profile:
+      body.profile === undefined ? "Default" : requiredString(body, "profile"),
   };
 }
 
 function getVault(): Vault {
-  if (!runtimeState.keyboxSessionKey) throw new ApiError(401, "Vault is locked");
+  if (!runtimeState.keyboxSessionKey)
+    throw new ApiError(401, "Vault is locked");
   return new Vault(runtimeState.keyboxSessionKey);
 }
 
@@ -84,7 +103,8 @@ async function dispatch(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const method = request.method.toUpperCase();
   const path = url.pathname;
-  const body = method === "GET" || method === "DELETE" ? {} : await readBody(request);
+  const body =
+    method === "GET" || method === "DELETE" ? {} : await readBody(request);
 
   if (method === "GET" && path === "/api/settings")
     return json(200, db.getAppSettings());
@@ -94,7 +114,14 @@ async function dispatch(request: Request): Promise<Response> {
     const autoLock = body.autoLock ?? current.autoLock;
     if (!(theme === "dark" || theme === "light" || theme === "system"))
       throw new ApiError(422, "theme must be dark, light, or system.");
-    if (!(autoLock === "5" || autoLock === "15" || autoLock === "60" || autoLock === "never"))
+    if (
+      !(
+        autoLock === "5" ||
+        autoLock === "15" ||
+        autoLock === "60" ||
+        autoLock === "never"
+      )
+    )
       throw new ApiError(422, "autoLock must be 5, 15, 60, or never.");
     db.saveAppSettings({ theme, autoLock });
     return json(200, { status: "updated" });
@@ -115,7 +142,8 @@ async function dispatch(request: Request): Promise<Response> {
       return json(200, { status: "success" });
     } catch (error) {
       throw new ApiError(
-        error instanceof Error && error.message === "Vault is already initialized."
+        error instanceof Error &&
+          error.message === "Vault is already initialized."
           ? 400
           : 500,
         error instanceof Error ? error.message : "Unable to initialize vault.",
@@ -141,7 +169,10 @@ async function dispatch(request: Request): Promise<Response> {
   if (method === "POST" && path === "/api/change-password") {
     try {
       const newPassword = requiredString(body, "new_password");
-      await changeMasterPassword(requiredString(body, "old_password"), newPassword);
+      await changeMasterPassword(
+        requiredString(body, "old_password"),
+        newPassword,
+      );
       setSessionKey(await unlockVault(newPassword));
       return json(200, { status: "success" });
     } catch (error) {
@@ -153,6 +184,17 @@ async function dispatch(request: Request): Promise<Response> {
   }
   if (method === "GET" && path === "/api/entries")
     return json(200, await getVault().listEntries());
+  if (method === "GET" && path === "/api/seed-phrases")
+    return json(200, await getVault().listSeedPhrases());
+  if (method === "POST" && path === "/api/seed-phrases") {
+    const data = seedPhraseInput(body);
+    if (!data.name || !data.phrase)
+      throw new ApiError(422, "Wallet name and seed phrase are required.");
+    return json(200, {
+      id: await getVault().saveSeedPhrase(data),
+      status: "created",
+    });
+  }
   if (method === "POST" && path === "/api/entries") {
     return json(200, {
       id: await getVault().addEntry(entryInput(body)),
@@ -161,7 +203,10 @@ async function dispatch(request: Request): Promise<Response> {
   }
   if (method === "PUT" && path === "/api/entries/order") {
     getVault();
-    if (!Array.isArray(body.entry_ids) || !body.entry_ids.every(Number.isSafeInteger)) {
+    if (
+      !Array.isArray(body.entry_ids) ||
+      !body.entry_ids.every(Number.isSafeInteger)
+    ) {
       throw new ApiError(422, "entry_ids must be an array of integers.");
     }
     try {
@@ -178,7 +223,10 @@ async function dispatch(request: Request): Promise<Response> {
     getVault();
     const saved = await db.getMetadata("profile_order");
     try {
-      return json(200, saved ? JSON.parse(Buffer.from(saved).toString("utf8")) : []);
+      return json(
+        200,
+        saved ? JSON.parse(Buffer.from(saved).toString("utf8")) : [],
+      );
     } catch {
       return json(200, []);
     }
@@ -203,7 +251,8 @@ async function dispatch(request: Request): Promise<Response> {
   const entryMatch = path.match(/^\/api\/entries\/(\d+)$/);
   if (entryMatch) {
     const id = Number(entryMatch[1]);
-    if (!Number.isSafeInteger(id) || id < 1) throw new ApiError(404, "Entry not found.");
+    if (!Number.isSafeInteger(id) || id < 1)
+      throw new ApiError(404, "Entry not found.");
     if (method === "GET") {
       try {
         return json(200, await getVault().getEntry(id));
@@ -230,6 +279,42 @@ async function dispatch(request: Request): Promise<Response> {
       return json(200, { status: "deleted" });
     }
   }
+  const seedMatch = path.match(/^\/api\/seed-phrases\/(\d+)$/);
+  if (seedMatch) {
+    const id = Number(seedMatch[1]);
+    if (!Number.isSafeInteger(id) || id < 1)
+      throw new ApiError(404, "Seed phrase not found.");
+    if (method === "GET") {
+      const vault = getVault();
+      try {
+        return json(200, await vault.getSeedPhrase(id));
+      } catch (error) {
+        throw new ApiError(
+          404,
+          error instanceof Error ? error.message : "Seed phrase not found.",
+        );
+      }
+    }
+    if (method === "PUT") {
+      const vault = getVault();
+      const data = seedPhraseInput(body);
+      if (!data.name || !data.phrase)
+        throw new ApiError(422, "Wallet name and seed phrase are required.");
+      try {
+        await vault.saveSeedPhrase(data, id);
+      } catch (error) {
+        throw new ApiError(
+          404,
+          error instanceof Error ? error.message : "Seed phrase not found.",
+        );
+      }
+      return json(200, { status: "updated" });
+    }
+    if (method === "DELETE") {
+      await getVault().deleteSeedPhrase(id);
+      return json(200, { status: "deleted" });
+    }
+  }
   if (method === "GET" && path === "/api/db-location")
     return json(200, { path: db.DB_PATH });
   if (method === "POST" && path === "/api/db-location") {
@@ -239,7 +324,9 @@ async function dispatch(request: Request): Promise<Response> {
     } catch (error) {
       throw new ApiError(
         500,
-        error instanceof Error ? error.message : "Unable to change database location.",
+        error instanceof Error
+          ? error.message
+          : "Unable to change database location.",
       );
     }
   }
@@ -260,9 +347,12 @@ async function dispatch(request: Request): Promise<Response> {
 }
 
 export async function handleApiRequest(request: Request): Promise<Response> {
-  if (!apiToken) return json(503, { detail: "The Keybox session is not initialized." });
+  if (!apiToken)
+    return json(503, { detail: "The Keybox session is not initialized." });
   if (!isAuthorized(request))
-    return json(401, { detail: "This local service only accepts requests from Keybox." });
+    return json(401, {
+      detail: "This local service only accepts requests from Keybox.",
+    });
   try {
     return await dispatch(request);
   } catch (error) {

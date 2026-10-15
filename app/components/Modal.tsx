@@ -23,7 +23,7 @@ export const Modal: React.FC<ModalProps> = ({
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     },
-    [onClose]
+    [onClose],
   );
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export const Modal: React.FC<ModalProps> = ({
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (e.target === e.currentTarget) onClose();
     },
-    [onClose]
+    [onClose],
   );
 
   if (!isOpen) return null;

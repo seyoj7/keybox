@@ -1,12 +1,23 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Search, Plus, Star, User, Settings,
-  Edit2, X as CloseIcon, Image as ImageIcon, Eye, EyeOff, Camera, Check, Trash2
-} from 'lucide-react';
-import styles from './VaultDashboard.module.css';
-import { Navbar } from '../components/Navbar';
-import { SettingsPage } from '../settings/SettingsPage';
-import { apiFetch } from '../lib/apiFetch';
+  Search,
+  Plus,
+  Star,
+  User,
+  Settings,
+  Edit2,
+  X as CloseIcon,
+  Image as ImageIcon,
+  Eye,
+  EyeOff,
+  Camera,
+  Check,
+  Trash2,
+} from "lucide-react";
+import styles from "./VaultDashboard.module.css";
+import { Navbar } from "../components/Navbar";
+import { SettingsPage } from "../settings/SettingsPage";
+import { apiFetch } from "../lib/apiFetch";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -20,6 +31,16 @@ interface VaultEntry {
   icon?: string | null;
   created_at: string;
   updated_at: string;
+}
+interface SeedPhraseEntry {
+  id: number;
+  name: string;
+  profile: string;
+  created_at: string;
+  updated_at: string;
+}
+interface SeedPhraseDetails extends SeedPhraseEntry {
+  phrase: string;
 }
 
 interface Profile {
@@ -51,160 +72,331 @@ interface VaultDashboardProps {
 // ── API helpers ─────────────────────────────────────────────
 
 async function fetchEntries(): Promise<VaultEntry[]> {
-  const res = await apiFetch('/api/entries');
-  if (res.status === 401) throw new Error('VAULT_LOCKED');
-  if (!res.ok) throw new Error('Failed to fetch entries');
+  const res = await apiFetch("/api/entries");
+  if (res.status === 401) throw new Error("VAULT_LOCKED");
+  if (!res.ok) throw new Error("Failed to fetch entries");
   return res.json();
 }
 
 async function fetchEntryDetails(entryId: number): Promise<VaultEntry> {
   const res = await apiFetch(`/api/entries/${entryId}`);
-  if (!res.ok) throw new Error('Failed to fetch entry');
+  if (!res.ok) throw new Error("Failed to fetch entry");
   return res.json();
+}
+
+async function fetchSeedPhrases(): Promise<SeedPhraseEntry[]> {
+  const response = await apiFetch("/api/seed-phrases");
+  if (response.status === 401) throw new Error("VAULT_LOCKED");
+  if (!response.ok) throw new Error("Failed to load seed phrases");
+  return response.json();
+}
+
+async function fetchSeedPhraseDetails(id: number): Promise<SeedPhraseDetails> {
+  const response = await apiFetch(`/api/seed-phrases/${id}`);
+  if (!response.ok) throw new Error("Failed to load seed phrase");
+  return response.json();
 }
 
 // ── Component ───────────────────────────────────────────────
 
-export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) => {
+export const VaultDashboard: React.FC<VaultDashboardProps> = ({
+  onLockVault,
+}) => {
   const [inlineEditId, setInlineEditId] = useState<number | null>(null);
-  const [activeView, setActiveView] = useState<'vault' | 'settings'>('vault');
+  const [activeView, setActiveView] = useState<"vault" | "settings">("vault");
+  const [seedPhrases, setSeedPhrases] = useState<SeedPhraseEntry[]>([]);
+  const [phraseForm, setPhraseForm] = useState<{
+    id?: number;
+    name: string;
+    phrase: string;
+    profile: string;
+  } | null>(null);
+  const [visiblePhrases, setVisiblePhrases] = useState<Record<number, string>>(
+    {},
+  );
+  const [phraseError, setPhraseError] = useState("");
   const [inlineEditData, setInlineEditData] = useState<{
     website: string;
     username: string;
     password: string;
     icon: string | null;
-  }>({ website: '', username: '', password: '', icon: null });
+  }>({ website: "", username: "", password: "", icon: null });
   const [isTileIconDragging, setIsTileIconDragging] = useState(false);
   const [isInlineSaving, setIsInlineSaving] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
-  const [inlineProfileEdit, setInlineProfileEdit] = useState<InlineProfileEdit | null>(null);
+  const [inlineProfileEdit, setInlineProfileEdit] =
+    useState<InlineProfileEdit | null>(null);
   const [isProfileIconDragging, setIsProfileIconDragging] = useState(false);
-  const [profileMetadata, setProfileMetadata] = useState<Record<string, ProfileMetadata>>({});
+  const [profileMetadata, setProfileMetadata] = useState<
+    Record<string, ProfileMetadata>
+  >({});
   const [createdProfiles, setCreatedProfiles] = useState<Profile[]>([]);
-  const [visiblePasswords, setVisiblePasswords] = useState<Record<number, boolean>>({});
+  const [visiblePasswords, setVisiblePasswords] = useState<
+    Record<number, string>
+  >({});
   const [entries, setEntries] = useState<VaultEntry[]>([]);
   const [draggedEntryId, setDraggedEntryId] = useState<number | null>(null);
   const [dragOverEntryId, setDragOverEntryId] = useState<number | null>(null);
-  const [dragDropPosition, setDragDropPosition] = useState<'above' | 'below' | null>(null);
+  const [dragDropPosition, setDragDropPosition] = useState<
+    "above" | "below" | null
+  >(null);
   const [profileOrder, setProfileOrder] = useState<string[]>([]);
-  const [draggedProfileName, setDraggedProfileName] = useState<string | null>(null);
-  const [dragOverProfileName, setDragOverProfileName] = useState<string | null>(null);
-  const [dragProfilePosition, setDragProfilePosition] = useState<'above' | 'below' | null>(null);
-  const [decryptedPasswords, setDecryptedPasswords] = useState<Record<number, string>>({});
+  const [draggedProfileName, setDraggedProfileName] = useState<string | null>(
+    null,
+  );
+  const [dragOverProfileName, setDragOverProfileName] = useState<string | null>(
+    null,
+  );
+  const [dragProfilePosition, setDragProfilePosition] = useState<
+    "above" | "below" | null
+  >(null);
 
   const tileIconFileInputRef = useRef<HTMLInputElement>(null);
   const profileIconFileInputRef = useRef<HTMLInputElement>(null);
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const seedPhraseHoldTimerRef = useRef<NodeJS.Timeout | null>(null);
   const profileHoldTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [holdingEntryId, setHoldingEntryId] = useState<number | null>(null);
+  const [holdingSeedPhraseId, setHoldingSeedPhraseId] = useState<number | null>(
+    null,
+  );
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
-  const [holdingProfileName, setHoldingProfileName] = useState<string | null>(null);
-  const [isDeletingProfileName, setIsDeletingProfileName] = useState<string | null>(null);
-  const [flashingPasswordId, setFlashingPasswordId] = useState<number | null>(null);
+  const [holdingProfileName, setHoldingProfileName] = useState<string | null>(
+    null,
+  );
+  const [isDeletingProfileName, setIsDeletingProfileName] = useState<
+    string | null
+  >(null);
+  const [flashingPasswordId, setFlashingPasswordId] = useState<number | null>(
+    null,
+  );
 
   // Fetch entries from backend on mount
   useEffect(() => {
     fetchEntries()
       .then(setEntries)
       .catch((err) => {
-        if (err.message === 'VAULT_LOCKED') {
+        if (err.message === "VAULT_LOCKED") {
           onLockVault();
         } else {
-          console.error('Failed to load entries:', err);
+          console.error("Failed to load entries:", err);
         }
       });
-    apiFetch('/api/profile-order')
+    fetchSeedPhrases()
+      .then(setSeedPhrases)
+      .catch((error: Error) => {
+        if (error.message === "VAULT_LOCKED") onLockVault();
+        else console.error("Failed to load seed phrases:", error);
+      });
+    apiFetch("/api/profile-order")
       .then(async (response) => {
-        if (!response.ok) throw new Error('Failed to load profile order');
+        if (!response.ok) throw new Error("Failed to load profile order");
         setProfileOrder(await response.json());
       })
-      .catch((error) => console.error('Failed to load profile order:', error));
+      .catch((error) => console.error("Failed to load profile order:", error));
   }, [onLockVault]);
 
-  const togglePassword = useCallback(async (e: React.MouseEvent, id: number) => {
-    e.stopPropagation();
-
-    const isVisible = visiblePasswords[id];
-    if (isVisible) {
-      // Hide it
-      setVisiblePasswords((prev) => ({ ...prev, [id]: false }));
+  const refreshSeedPhrases = useCallback(async () => {
+    setSeedPhrases(await fetchSeedPhrases());
+  }, []);
+  const saveSeedPhrase = useCallback(async () => {
+    if (!phraseForm || !phraseForm.name.trim() || !phraseForm.phrase.trim())
       return;
+    setPhraseError("");
+    const editing = phraseForm.id !== undefined;
+    try {
+      const response = await apiFetch(
+        editing ? `/api/seed-phrases/${phraseForm.id}` : "/api/seed-phrases",
+        {
+          method: editing ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: phraseForm.name.trim(),
+            phrase: phraseForm.phrase.trim(),
+            profile: phraseForm.profile,
+          }),
+        },
+      );
+      if (!response.ok) throw new Error("Could not save this wallet phrase.");
+      await refreshSeedPhrases();
+      if (phraseForm.id !== undefined) {
+        setVisiblePhrases((previous) => {
+          const next = { ...previous };
+          delete next[phraseForm.id!];
+          return next;
+        });
+      }
+      setPhraseForm(null);
+    } catch (error) {
+      console.error("Failed to save seed phrase:", error);
+      setPhraseError("Could not save this wallet phrase.");
     }
-
-    // Fetch decrypted password if not already cached
-    if (!decryptedPasswords[id]) {
-      try {
-        const entry = await fetchEntryDetails(id);
-        setDecryptedPasswords((prev) => ({ ...prev, [id]: entry.password ?? '' }));
-      } catch (err) {
-        console.error('Failed to decrypt entry:', err);
+  }, [phraseForm, refreshSeedPhrases]);
+  const revealSeedPhrase = useCallback(
+    async (id: number) => {
+      if (visiblePhrases[id]) {
+        setVisiblePhrases((previous) => {
+          const next = { ...previous };
+          delete next[id];
+          return next;
+        });
         return;
       }
-    }
-
-    setVisiblePasswords((prev) => ({ ...prev, [id]: true }));
-  }, [visiblePasswords, decryptedPasswords]);
-
-  const startHoldingDelete = useCallback((e: React.MouseEvent | React.TouchEvent, entryId: number) => {
-    e.stopPropagation();
-    if (holdTimerRef.current) {
-      clearTimeout(holdTimerRef.current);
-      holdTimerRef.current = null;
-    }
-    setHoldingEntryId(entryId);
-
-    holdTimerRef.current = setTimeout(async () => {
-      setIsDeletingId(entryId);
-      setHoldingEntryId(null);
-      holdTimerRef.current = null;
       try {
-        const res = await apiFetch(`/api/entries/${entryId}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Failed to delete entry');
-        const updatedEntries = await fetchEntries();
-        setEntries(updatedEntries);
-        setDecryptedPasswords(prev => {
-          const next = { ...prev };
-          delete next[entryId];
-          return next;
-        });
-        setVisiblePasswords(prev => {
-          const next = { ...prev };
-          delete next[entryId];
-          return next;
-        });
-      } catch (err) {
-        console.error('Failed to delete entry:', err);
-      } finally {
-        setIsDeletingId(null);
+        const phrase = await fetchSeedPhraseDetails(id);
+        setVisiblePhrases((previous) => ({ ...previous, [id]: phrase.phrase }));
+      } catch (error) {
+        console.error("Failed to reveal seed phrase:", error);
       }
-    }, 5000);
+    },
+    [visiblePhrases],
+  );
+  const editSeedPhrase = useCallback(async (entry: SeedPhraseEntry) => {
+    try {
+      const phrase = await fetchSeedPhraseDetails(entry.id);
+      setPhraseForm({
+        id: entry.id,
+        name: phrase.name,
+        phrase: phrase.phrase,
+        profile: phrase.profile,
+      });
+      setPhraseError("");
+    } catch (error) {
+      console.error("Failed to load seed phrase for editing:", error);
+    }
+  }, []);
+  const deleteSeedPhrase = useCallback(async (id: number) => {
+    const response = await apiFetch(`/api/seed-phrases/${id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) return;
+    setSeedPhrases((prev) => prev.filter((item) => item.id !== id));
+    setVisiblePhrases((previous) => {
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
   }, []);
 
-  const cancelHoldingDelete = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
-    if (e) e.stopPropagation();
-    if (holdTimerRef.current) {
-      clearTimeout(holdTimerRef.current);
-      holdTimerRef.current = null;
-    }
-    setHoldingEntryId(null);
-  }, []);
+  const togglePassword = useCallback(
+    async (e: React.MouseEvent, id: number) => {
+      e.stopPropagation();
+
+      const isVisible = visiblePasswords[id] !== undefined;
+      if (isVisible) {
+        setVisiblePasswords((previous) => {
+          const next = { ...previous };
+          delete next[id];
+          return next;
+        });
+        return;
+      }
+
+      try {
+        const entry = await fetchEntryDetails(id);
+        setVisiblePasswords((previous) => ({
+          ...previous,
+          [id]: entry.password ?? "",
+        }));
+      } catch (err) {
+        console.error("Failed to decrypt entry:", err);
+      }
+    },
+    [visiblePasswords],
+  );
+
+  const startHoldingDelete = useCallback(
+    (e: React.MouseEvent | React.TouchEvent, entryId: number) => {
+      e.stopPropagation();
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current);
+        holdTimerRef.current = null;
+      }
+      setHoldingEntryId(entryId);
+
+      holdTimerRef.current = setTimeout(async () => {
+        setIsDeletingId(entryId);
+        setHoldingEntryId(null);
+        holdTimerRef.current = null;
+        try {
+          const res = await apiFetch(`/api/entries/${entryId}`, {
+            method: "DELETE",
+          });
+          if (!res.ok) throw new Error("Failed to delete entry");
+          const updatedEntries = await fetchEntries();
+          setEntries(updatedEntries);
+          setVisiblePasswords((prev) => {
+            const next = { ...prev };
+            delete next[entryId];
+            return next;
+          });
+        } catch (err) {
+          console.error("Failed to delete entry:", err);
+        } finally {
+          setIsDeletingId(null);
+        }
+      }, 5000);
+    },
+    [],
+  );
+
+  const cancelHoldingDelete = useCallback(
+    (e?: React.MouseEvent | React.TouchEvent) => {
+      if (e) e.stopPropagation();
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current);
+        holdTimerRef.current = null;
+      }
+      setHoldingEntryId(null);
+    },
+    [],
+  );
+
+  const startHoldingSeedPhraseDelete = useCallback(
+    (e: React.MouseEvent | React.TouchEvent, id: number) => {
+      e.stopPropagation();
+      if (seedPhraseHoldTimerRef.current)
+        clearTimeout(seedPhraseHoldTimerRef.current);
+      setHoldingSeedPhraseId(id);
+      seedPhraseHoldTimerRef.current = setTimeout(() => {
+        seedPhraseHoldTimerRef.current = null;
+        setHoldingSeedPhraseId(null);
+        void deleteSeedPhrase(id);
+      }, 5000);
+    },
+    [deleteSeedPhrase],
+  );
+
+  const cancelHoldingSeedPhraseDelete = useCallback(
+    (e?: React.MouseEvent | React.TouchEvent) => {
+      if (e) e.stopPropagation();
+      if (seedPhraseHoldTimerRef.current) {
+        clearTimeout(seedPhraseHoldTimerRef.current);
+        seedPhraseHoldTimerRef.current = null;
+      }
+      setHoldingSeedPhraseId(null);
+    },
+    [],
+  );
 
   useEffect(() => {
     return () => {
       if (holdTimerRef.current) {
         clearTimeout(holdTimerRef.current);
       }
+      if (seedPhraseHoldTimerRef.current)
+        clearTimeout(seedPhraseHoldTimerRef.current);
     };
   }, []);
 
   // Group entries by username to create profiles
   const groupedItems = entries.reduce<Record<string, Profile>>((acc, item) => {
-    const key = item.profile || 'Default';
+    const key = item.profile || "Default";
     if (!acc[key]) {
       acc[key] = {
         name: key,
-        domain: 'Profile',
-        color: '#6366f1',
+        domain: "Profile",
+        color: "#6366f1",
         icon: null,
         accounts: [],
         displayName: key,
@@ -215,120 +407,170 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
     return acc;
   }, {});
 
+  seedPhrases.forEach((phrase) => {
+    if (!groupedItems[phrase.profile]) {
+      groupedItems[phrase.profile] = {
+        name: phrase.profile,
+        domain: "Profile",
+        color: "#6366f1",
+        icon: null,
+        accounts: [],
+        displayName: phrase.profile,
+        displayIcon: null,
+      };
+    }
+  });
+
   const allProfiles: Profile[] = [
     ...Object.values(groupedItems),
     ...createdProfiles.filter((cp) => !groupedItems[cp.name]),
   ];
 
-  const profiles: Profile[] = allProfiles.map((p) => {
-    const meta = profileMetadata[p.name];
-    return {
-      ...p,
-      displayName: meta?.customName || p.name,
-      displayIcon: meta?.customImage || p.icon,
-    };
-  }).sort((left, right) => {
-    const leftIndex = profileOrder.indexOf(left.name);
-    const rightIndex = profileOrder.indexOf(right.name);
-    if (leftIndex === -1 && rightIndex === -1) return 0;
-    if (leftIndex === -1) return 1;
-    if (rightIndex === -1) return -1;
-    return leftIndex - rightIndex;
-  });
+  const profiles: Profile[] = allProfiles
+    .map((p) => {
+      const meta = profileMetadata[p.name];
+      return {
+        ...p,
+        displayName: meta?.customName || p.name,
+        displayIcon: meta?.customImage || p.icon,
+      };
+    })
+    .sort((left, right) => {
+      const leftIndex = profileOrder.indexOf(left.name);
+      const rightIndex = profileOrder.indexOf(right.name);
+      if (leftIndex === -1 && rightIndex === -1) return 0;
+      if (leftIndex === -1) return 1;
+      if (rightIndex === -1) return -1;
+      return leftIndex - rightIndex;
+    });
 
-  const activeProfile = profiles.find(p => p.name === selectedProfile?.name) || selectedProfile;
+  const activeProfile =
+    profiles.find((p) => p.name === selectedProfile?.name) || selectedProfile;
 
-  const reorderEntries = useCallback(async (targetEntryId: number, position: 'above' | 'below' | null = null) => {
-    if (draggedEntryId === null || draggedEntryId === targetEntryId) return;
-    const currentProfileIds = activeProfile?.accounts.map((entry) => entry.id) ?? [];
-    const fromIndex = currentProfileIds.indexOf(draggedEntryId);
-    const toIndex = currentProfileIds.indexOf(targetEntryId);
-    if (fromIndex < 0 || toIndex < 0) return;
+  const reorderEntries = useCallback(
+    async (
+      targetEntryId: number,
+      position: "above" | "below" | null = null,
+    ) => {
+      if (draggedEntryId === null || draggedEntryId === targetEntryId) return;
+      const currentProfileIds =
+        activeProfile?.accounts.map((entry) => entry.id) ?? [];
+      const fromIndex = currentProfileIds.indexOf(draggedEntryId);
+      const toIndex = currentProfileIds.indexOf(targetEntryId);
+      if (fromIndex < 0 || toIndex < 0) return;
 
-    const profileEntries = entries.filter((entry) => currentProfileIds.includes(entry.id));
-    if (profileEntries.length !== currentProfileIds.length) return;
-    const reorderedProfileEntries = [...profileEntries];
-    const [movedEntry] = reorderedProfileEntries.splice(fromIndex, 1);
-    const targetIdxAfterRemoval = reorderedProfileEntries.findIndex((e) => e.id === targetEntryId);
-    if (targetIdxAfterRemoval === -1) return;
+      const profileEntries = entries.filter((entry) =>
+        currentProfileIds.includes(entry.id),
+      );
+      if (profileEntries.length !== currentProfileIds.length) return;
+      const reorderedProfileEntries = [...profileEntries];
+      const [movedEntry] = reorderedProfileEntries.splice(fromIndex, 1);
+      const targetIdxAfterRemoval = reorderedProfileEntries.findIndex(
+        (e) => e.id === targetEntryId,
+      );
+      if (targetIdxAfterRemoval === -1) return;
 
-    const effectivePosition = position ?? (fromIndex < toIndex ? 'below' : 'above');
-    const insertIndex = effectivePosition === 'above' ? targetIdxAfterRemoval : targetIdxAfterRemoval + 1;
+      const effectivePosition =
+        position ?? (fromIndex < toIndex ? "below" : "above");
+      const insertIndex =
+        effectivePosition === "above"
+          ? targetIdxAfterRemoval
+          : targetIdxAfterRemoval + 1;
 
-    if (fromIndex === insertIndex) {
+      if (fromIndex === insertIndex) {
+        setDraggedEntryId(null);
+        setDragOverEntryId(null);
+        setDragDropPosition(null);
+        return;
+      }
+
+      reorderedProfileEntries.splice(insertIndex, 0, movedEntry);
+      let profileIndex = 0;
+      const reorderedEntries = entries.map((entry) =>
+        currentProfileIds.includes(entry.id)
+          ? reorderedProfileEntries[profileIndex++]
+          : entry,
+      );
+      if (reorderedEntries.some((entry) => !entry)) return;
+      setEntries(reorderedEntries);
       setDraggedEntryId(null);
       setDragOverEntryId(null);
       setDragDropPosition(null);
-      return;
-    }
 
-    reorderedProfileEntries.splice(insertIndex, 0, movedEntry);
-    let profileIndex = 0;
-    const reorderedEntries = entries.map((entry) => currentProfileIds.includes(entry.id)
-      ? reorderedProfileEntries[profileIndex++]
-      : entry);
-    if (reorderedEntries.some((entry) => !entry)) return;
-    setEntries(reorderedEntries);
-    setDraggedEntryId(null);
-    setDragOverEntryId(null);
-    setDragDropPosition(null);
+      try {
+        const response = await apiFetch("/api/entries/order", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            entry_ids: reorderedEntries.map((entry) => entry.id),
+          }),
+        });
+        if (!response.ok) throw new Error("Failed to save entry order");
+      } catch (error) {
+        console.error("Failed to save entry order:", error);
+        setEntries(await fetchEntries());
+      }
+    },
+    [activeProfile, draggedEntryId, entries],
+  );
 
-    try {
-      const response = await apiFetch('/api/entries/order', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entry_ids: reorderedEntries.map((entry) => entry.id) }),
-      });
-      if (!response.ok) throw new Error('Failed to save entry order');
-    } catch (error) {
-      console.error('Failed to save entry order:', error);
-      setEntries(await fetchEntries());
-    }
-  }, [activeProfile, draggedEntryId, entries]);
+  const reorderProfiles = useCallback(
+    async (
+      targetProfileName: string,
+      position: "above" | "below" | null = null,
+    ) => {
+      if (
+        draggedProfileName === null ||
+        draggedProfileName === targetProfileName
+      )
+        return;
+      const reorderedNames = profiles.map((profile) => profile.name);
+      const fromIndex = reorderedNames.indexOf(draggedProfileName);
+      const toIndex = reorderedNames.indexOf(targetProfileName);
+      if (fromIndex < 0 || toIndex < 0) return;
+      const [movedName] = reorderedNames.splice(fromIndex, 1);
+      const targetIdxAfterRemoval = reorderedNames.indexOf(targetProfileName);
+      if (targetIdxAfterRemoval === -1) return;
 
-  const reorderProfiles = useCallback(async (targetProfileName: string, position: 'above' | 'below' | null = null) => {
-    if (draggedProfileName === null || draggedProfileName === targetProfileName) return;
-    const reorderedNames = profiles.map((profile) => profile.name);
-    const fromIndex = reorderedNames.indexOf(draggedProfileName);
-    const toIndex = reorderedNames.indexOf(targetProfileName);
-    if (fromIndex < 0 || toIndex < 0) return;
-    const [movedName] = reorderedNames.splice(fromIndex, 1);
-    const targetIdxAfterRemoval = reorderedNames.indexOf(targetProfileName);
-    if (targetIdxAfterRemoval === -1) return;
+      const effectivePosition =
+        position ?? (fromIndex < toIndex ? "below" : "above");
+      const insertIndex =
+        effectivePosition === "above"
+          ? targetIdxAfterRemoval
+          : targetIdxAfterRemoval + 1;
 
-    const effectivePosition = position ?? (fromIndex < toIndex ? 'below' : 'above');
-    const insertIndex = effectivePosition === 'above' ? targetIdxAfterRemoval : targetIdxAfterRemoval + 1;
+      if (fromIndex === insertIndex) {
+        setDraggedProfileName(null);
+        setDragOverProfileName(null);
+        setDragProfilePosition(null);
+        return;
+      }
 
-    if (fromIndex === insertIndex) {
+      reorderedNames.splice(insertIndex, 0, movedName);
+      setProfileOrder(reorderedNames);
       setDraggedProfileName(null);
       setDragOverProfileName(null);
       setDragProfilePosition(null);
-      return;
-    }
 
-    reorderedNames.splice(insertIndex, 0, movedName);
-    setProfileOrder(reorderedNames);
-    setDraggedProfileName(null);
-    setDragOverProfileName(null);
-    setDragProfilePosition(null);
-
-    try {
-      const response = await apiFetch('/api/profile-order', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile_names: reorderedNames }),
-      });
-      if (!response.ok) throw new Error('Failed to save profile order');
-    } catch (error) {
-      console.error('Failed to save profile order:', error);
       try {
-        const response = await apiFetch('/api/profile-order');
-        if (response.ok) setProfileOrder(await response.json());
-      } catch (reloadError) {
-        console.error('Failed to reload profile order:', reloadError);
+        const response = await apiFetch("/api/profile-order", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ profile_names: reorderedNames }),
+        });
+        if (!response.ok) throw new Error("Failed to save profile order");
+      } catch (error) {
+        console.error("Failed to save profile order:", error);
+        try {
+          const response = await apiFetch("/api/profile-order");
+          if (response.ok) setProfileOrder(await response.json());
+        } catch (reloadError) {
+          console.error("Failed to reload profile order:", reloadError);
+        }
       }
-    }
-  }, [draggedProfileName, profiles]);
+    },
+    [draggedProfileName, profiles],
+  );
 
   // Auto-select first profile
   useEffect(() => {
@@ -338,58 +580,83 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profiles.length]);
 
-  const startHoldingProfileDelete = useCallback((e: React.MouseEvent | React.TouchEvent, profile: Profile) => {
-    e.stopPropagation();
-    if (profileHoldTimerRef.current) {
-      clearTimeout(profileHoldTimerRef.current);
-      profileHoldTimerRef.current = null;
-    }
-    setHoldingProfileName(profile.name);
-
-    profileHoldTimerRef.current = setTimeout(async () => {
-      setIsDeletingProfileName(profile.name);
-      setHoldingProfileName(null);
-      profileHoldTimerRef.current = null;
-      try {
-        if (profile.accounts.length > 0) {
-          await Promise.all(
-            profile.accounts.map(acc => apiFetch(`/api/entries/${acc.id}`, { method: 'DELETE' }))
-          );
-        }
-
-        setCreatedProfiles(prev => prev.filter(p => p.name !== profile.name));
-        setProfileMetadata(prev => {
-          const next = { ...prev };
-          delete next[profile.name];
-          return next;
-        });
-
-        const updatedEntries = await fetchEntries();
-        setEntries(updatedEntries);
-
-        setSelectedProfile(prev => {
-          if (prev?.name === profile.name) {
-            const remaining = profiles.filter(p => p.name !== profile.name);
-            return remaining.length > 0 ? remaining[0] : null;
-          }
-          return prev;
-        });
-      } catch (err) {
-        console.error('Failed to delete profile:', err);
-      } finally {
-        setIsDeletingProfileName(null);
+  const startHoldingProfileDelete = useCallback(
+    (e: React.MouseEvent | React.TouchEvent, profile: Profile) => {
+      e.stopPropagation();
+      if (profileHoldTimerRef.current) {
+        clearTimeout(profileHoldTimerRef.current);
+        profileHoldTimerRef.current = null;
       }
-    }, 5000);
-  }, [profiles]);
+      setHoldingProfileName(profile.name);
 
-  const cancelHoldingProfileDelete = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
-    if (e) e.stopPropagation();
-    if (profileHoldTimerRef.current) {
-      clearTimeout(profileHoldTimerRef.current);
-      profileHoldTimerRef.current = null;
-    }
-    setHoldingProfileName(null);
-  }, []);
+      profileHoldTimerRef.current = setTimeout(async () => {
+        setIsDeletingProfileName(profile.name);
+        setHoldingProfileName(null);
+        profileHoldTimerRef.current = null;
+        try {
+          if (profile.accounts.length > 0) {
+            await Promise.all(
+              profile.accounts.map((acc) =>
+                apiFetch(`/api/entries/${acc.id}`, { method: "DELETE" }),
+              ),
+            );
+          }
+          const profilePhrases = seedPhrases.filter(
+            (phrase) => phrase.profile === profile.name,
+          );
+          if (profilePhrases.length) {
+            await Promise.all(
+              profilePhrases.map((phrase) =>
+                apiFetch(`/api/seed-phrases/${phrase.id}`, {
+                  method: "DELETE",
+                }),
+              ),
+            );
+            setSeedPhrases((prev) =>
+              prev.filter((phrase) => phrase.profile !== profile.name),
+            );
+          }
+
+          setCreatedProfiles((prev) =>
+            prev.filter((p) => p.name !== profile.name),
+          );
+          setProfileMetadata((prev) => {
+            const next = { ...prev };
+            delete next[profile.name];
+            return next;
+          });
+
+          const updatedEntries = await fetchEntries();
+          setEntries(updatedEntries);
+
+          setSelectedProfile((prev) => {
+            if (prev?.name === profile.name) {
+              const remaining = profiles.filter((p) => p.name !== profile.name);
+              return remaining.length > 0 ? remaining[0] : null;
+            }
+            return prev;
+          });
+        } catch (err) {
+          console.error("Failed to delete profile:", err);
+        } finally {
+          setIsDeletingProfileName(null);
+        }
+      }, 5000);
+    },
+    [profiles, seedPhrases],
+  );
+
+  const cancelHoldingProfileDelete = useCallback(
+    (e?: React.MouseEvent | React.TouchEvent) => {
+      if (e) e.stopPropagation();
+      if (profileHoldTimerRef.current) {
+        clearTimeout(profileHoldTimerRef.current);
+        profileHoldTimerRef.current = null;
+      }
+      setHoldingProfileName(null);
+    },
+    [],
+  );
 
   useEffect(() => {
     return () => {
@@ -400,7 +667,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
   }, []);
 
   const handleProfileIconFile = useCallback((file: File) => {
-    if (!file.type.startsWith('image/')) return;
+    if (!file.type.startsWith("image/")) return;
     const reader = new FileReader();
     reader.onload = (event) => {
       const result = event.target?.result as string;
@@ -408,7 +675,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
 
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement('canvas');
+        const canvas = document.createElement("canvas");
         const maxSize = 128;
         let width = img.width;
         let height = img.height;
@@ -427,13 +694,20 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
 
         canvas.width = width;
         canvas.height = height;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL(file.type.includes('png') ? 'image/png' : 'image/jpeg', 0.9);
-          setInlineProfileEdit((prev) => prev ? ({ ...prev, icon: dataUrl }) : null);
+          const dataUrl = canvas.toDataURL(
+            file.type.includes("png") ? "image/png" : "image/jpeg",
+            0.9,
+          );
+          setInlineProfileEdit((prev) =>
+            prev ? { ...prev, icon: dataUrl } : null,
+          );
         } else {
-          setInlineProfileEdit((prev) => prev ? ({ ...prev, icon: result }) : null);
+          setInlineProfileEdit((prev) =>
+            prev ? { ...prev, icon: result } : null,
+          );
         }
       };
       img.src = result;
@@ -442,7 +716,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
   }, []);
 
   const handleTileIconFile = useCallback((file: File) => {
-    if (!file.type.startsWith('image/')) return;
+    if (!file.type.startsWith("image/")) return;
     const reader = new FileReader();
     reader.onload = (event) => {
       const result = event.target?.result as string;
@@ -450,7 +724,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
 
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement('canvas');
+        const canvas = document.createElement("canvas");
         const maxSize = 128;
         let width = img.width;
         let height = img.height;
@@ -469,10 +743,13 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
 
         canvas.width = width;
         canvas.height = height;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL(file.type.includes('png') ? 'image/png' : 'image/jpeg', 0.9);
+          const dataUrl = canvas.toDataURL(
+            file.type.includes("png") ? "image/png" : "image/jpeg",
+            0.9,
+          );
           setInlineEditData((prev) => ({ ...prev, icon: dataUrl }));
         } else {
           setInlineEditData((prev) => ({ ...prev, icon: result }));
@@ -487,20 +764,23 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
     setInlineProfileEdit({
       isNew: true,
       originalName: `profile_${Date.now()}`,
-      name: '',
+      name: "",
       icon: null,
     });
   }, []);
 
-  const handleStartEditProfile = useCallback((e: React.MouseEvent, profile: Profile) => {
-    e.stopPropagation();
-    setInlineProfileEdit({
-      isNew: false,
-      originalName: profile.name,
-      name: profile.displayName,
-      icon: profile.displayIcon || null,
-    });
-  }, []);
+  const handleStartEditProfile = useCallback(
+    (e: React.MouseEvent, profile: Profile) => {
+      e.stopPropagation();
+      setInlineProfileEdit({
+        isNew: false,
+        originalName: profile.name,
+        name: profile.displayName,
+        icon: profile.displayIcon || null,
+      });
+    },
+    [],
+  );
 
   const handleCancelProfileEdit = useCallback(() => {
     setInlineProfileEdit(null);
@@ -515,8 +795,8 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
     if (inlineProfileEdit.isNew) {
       const newProfile: Profile = {
         name: newName,
-        domain: 'Profile',
-        color: '#6366f1',
+        domain: "Profile",
+        color: "#6366f1",
         icon: null,
         accounts: [],
         displayName: newName,
@@ -534,11 +814,15 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
     } else {
       // Update existing profile
       if (selectedProfile?.name === inlineProfileEdit.originalName) {
-        setSelectedProfile((prev) => prev ? {
-          ...prev,
-          displayName: newName,
-          displayIcon: inlineProfileEdit.icon || null,
-        } : null);
+        setSelectedProfile((prev) =>
+          prev
+            ? {
+                ...prev,
+                displayName: newName,
+                displayIcon: inlineProfileEdit.icon || null,
+              }
+            : null,
+        );
       }
 
       setProfileMetadata((prev) => ({
@@ -555,69 +839,81 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
 
   const handleAddEntry = useCallback(() => {
     setInlineEditId(-1);
-    setInlineEditData({ website: '', username: '', password: '', icon: null });
+    setInlineEditData({ website: "", username: "", password: "", icon: null });
   }, []);
 
-  const handleEditEntry = useCallback(async (e: React.MouseEvent, entry: VaultEntry) => {
-    e.stopPropagation();
-    try {
-      setInlineEditId(entry.id);
-      setInlineEditData({
-        website: entry.website,
-        username: entry.username,
-        password: '...',
-        icon: entry.icon || null,
-      });
-      
-      // Fetch full entry details (including password) before editing
-      const fullEntry = await fetchEntryDetails(entry.id);
-      setInlineEditData({
-        website: fullEntry.website,
-        username: fullEntry.username,
-        password: fullEntry.password || '',
-        icon: fullEntry.icon || entry.icon || null,
-      });
-    } catch (err) {
-      console.error('Failed to fetch entry details for editing:', err);
-      setInlineEditId(null);
-    }
-  }, []);
+  const handleEditEntry = useCallback(
+    async (e: React.MouseEvent, entry: VaultEntry) => {
+      e.stopPropagation();
+      try {
+        setInlineEditId(entry.id);
+        setInlineEditData({
+          website: entry.website,
+          username: entry.username,
+          password: "...",
+          icon: entry.icon || null,
+        });
 
-  const handleSaveInline = useCallback(async (entry?: VaultEntry) => {
-    setIsInlineSaving(true);
-    try {
-      const isNew = !entry;
-      const url = isNew ? '/api/entries' : `/api/entries/${entry.id}`;
-      const method = isNew ? 'POST' : 'PUT';
-
-      const res = await apiFetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          website: inlineEditData.website.trim(),
-          username: inlineEditData.username.trim(),
-          password: inlineEditData.password,
-          profile: entry?.profile || selectedProfile?.name || 'Default',
-          icon: inlineEditData.icon,
-        }),
-      });
-      if (!res.ok) throw new Error(isNew ? 'Failed to create entry' : 'Failed to update entry');
-      
-      setInlineEditId(null);
-      // Refresh entries
-      const updatedEntries = await fetchEntries();
-      setEntries(updatedEntries);
-      
-      // Clear decrypted cache for this item to force refetch if user views it again
-      if (!isNew) {
-        setDecryptedPasswords(prev => ({...prev, [entry.id]: ''}));
+        // Fetch full entry details (including password) before editing
+        const fullEntry = await fetchEntryDetails(entry.id);
+        setInlineEditData({
+          website: fullEntry.website,
+          username: fullEntry.username,
+          password: fullEntry.password || "",
+          icon: fullEntry.icon || entry.icon || null,
+        });
+      } catch (err) {
+        console.error("Failed to fetch entry details for editing:", err);
+        setInlineEditId(null);
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsInlineSaving(false);
-    }
-  }, [inlineEditData, selectedProfile]);
+    },
+    [],
+  );
+
+  const handleSaveInline = useCallback(
+    async (entry?: VaultEntry) => {
+      setIsInlineSaving(true);
+      try {
+        const isNew = !entry;
+        const url = isNew ? "/api/entries" : `/api/entries/${entry.id}`;
+        const method = isNew ? "POST" : "PUT";
+
+        const res = await apiFetch(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            website: inlineEditData.website.trim(),
+            username: inlineEditData.username.trim(),
+            password: inlineEditData.password,
+            profile: entry?.profile || selectedProfile?.name || "Default",
+            icon: inlineEditData.icon,
+          }),
+        });
+        if (!res.ok)
+          throw new Error(
+            isNew ? "Failed to create entry" : "Failed to update entry",
+          );
+
+        setInlineEditId(null);
+        // Refresh entries
+        const updatedEntries = await fetchEntries();
+        setEntries(updatedEntries);
+
+        if (!isNew) {
+          setVisiblePasswords((previous) => {
+            const next = { ...previous };
+            delete next[entry.id];
+            return next;
+          });
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsInlineSaving(false);
+      }
+    },
+    [inlineEditData, selectedProfile],
+  );
 
   const handleCancelInline = useCallback(() => {
     setInlineEditId(null);
@@ -626,15 +922,18 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
   const renderInlineEdit = (item?: VaultEntry) => {
     const currentIcon = inlineEditData.icon;
     return (
-      <div key={item ? item.id : 'new'} className={`${styles.tile} ${styles.tileEditing}`}>
+      <div
+        key={item ? item.id : "new"}
+        className={`${styles.tile} ${styles.tileEditing}`}
+      >
         <div className={styles.tileIconContainer}>
           <input
             ref={tileIconFileInputRef}
             type="file"
             accept="image/*"
-            style={{ display: 'none' }}
+            style={{ display: "none" }}
             onClick={(e) => {
-              (e.target as HTMLInputElement).value = '';
+              (e.target as HTMLInputElement).value = "";
             }}
             onChange={(e) => {
               if (e.target.files?.[0]) {
@@ -643,8 +942,8 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
             }}
           />
           <div
-            className={`${styles.tileIconWrapper} ${styles.tileIconWrapperEditable} ${isTileIconDragging ? styles.tileIconWrapperDragging : ''}`}
-            style={{ color: item?.color || '#818cf8' }}
+            className={`${styles.tileIconWrapper} ${styles.tileIconWrapperEditable} ${isTileIconDragging ? styles.tileIconWrapperDragging : ""}`}
+            style={{ color: item?.color || "#818cf8" }}
             title="Click or drop image to update icon"
             onClick={() => tileIconFileInputRef.current?.click()}
             onDragOver={(e) => {
@@ -667,10 +966,21 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
             }}
           >
             {currentIcon ? (
-              <img src={currentIcon} alt={inlineEditData.website || 'Icon'} className={styles.tileIconImg} />
+              <img
+                src={currentIcon}
+                alt={inlineEditData.website || "Icon"}
+                className={styles.tileIconImg}
+              />
             ) : (
-              <span style={{ fontSize: '18px', fontWeight: 'bold', lineHeight: 1, textTransform: 'uppercase' }}>
-                {inlineEditData.website?.[0] || '?'}
+              <span
+                style={{
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  lineHeight: 1,
+                  textTransform: "uppercase",
+                }}
+              >
+                {inlineEditData.website?.[0] || "?"}
               </span>
             )}
             <div className={styles.tileIconOverlay}>
@@ -695,7 +1005,12 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
           <input
             type="text"
             value={inlineEditData.website}
-            onChange={(e) => setInlineEditData(prev => ({ ...prev, website: e.target.value }))}
+            onChange={(e) =>
+              setInlineEditData((prev) => ({
+                ...prev,
+                website: e.target.value,
+              }))
+            }
             className={styles.inlineInput}
             placeholder="Website"
           />
@@ -704,7 +1019,12 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
           <input
             type="text"
             value={inlineEditData.username}
-            onChange={(e) => setInlineEditData(prev => ({ ...prev, username: e.target.value }))}
+            onChange={(e) =>
+              setInlineEditData((prev) => ({
+                ...prev,
+                username: e.target.value,
+              }))
+            }
             className={styles.inlineInput}
             placeholder="Username"
           />
@@ -712,23 +1032,30 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
         <div className={styles.tilePasswordContainer}>
           <input
             type="text"
-            value={inlineEditData.password === '...' ? '' : inlineEditData.password}
-            onChange={(e) => setInlineEditData(prev => ({ ...prev, password: e.target.value }))}
+            value={
+              inlineEditData.password === "..." ? "" : inlineEditData.password
+            }
+            onChange={(e) =>
+              setInlineEditData((prev) => ({
+                ...prev,
+                password: e.target.value,
+              }))
+            }
             className={styles.inlineInput}
             placeholder="Password"
-            disabled={inlineEditData.password === '...'}
+            disabled={inlineEditData.password === "..."}
           />
         </div>
         <div className={styles.inlineActions}>
-          <button 
-            className={styles.inlineSaveBtn} 
+          <button
+            className={styles.inlineSaveBtn}
             onClick={() => handleSaveInline(item)}
-            disabled={isInlineSaving || inlineEditData.password === '...'}
+            disabled={isInlineSaving || inlineEditData.password === "..."}
           >
-            {isInlineSaving ? 'Saving...' : 'Save'}
+            {isInlineSaving ? "Saving..." : "Save"}
           </button>
-          <button 
-            className={styles.inlineCancelBtn} 
+          <button
+            className={styles.inlineCancelBtn}
             onClick={handleCancelInline}
             disabled={isInlineSaving}
           >
@@ -742,11 +1069,19 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
   const renderProfileInlineEdit = () => {
     if (!inlineProfileEdit) return null;
     const currentIcon = inlineProfileEdit.icon;
-    const profileColor = (!inlineProfileEdit.isNew && profiles.find(p => p.name === inlineProfileEdit.originalName)?.color) || '#6366f1';
+    const profileColor =
+      (!inlineProfileEdit.isNew &&
+        profiles.find((p) => p.name === inlineProfileEdit.originalName)
+          ?.color) ||
+      "#6366f1";
 
     return (
       <div
-        key={inlineProfileEdit.isNew ? 'new-profile' : inlineProfileEdit.originalName}
+        key={
+          inlineProfileEdit.isNew
+            ? "new-profile"
+            : inlineProfileEdit.originalName
+        }
         className={`${styles.navItem} ${styles.navItemEditing}`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -754,9 +1089,9 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
           ref={profileIconFileInputRef}
           type="file"
           accept="image/*"
-          style={{ display: 'none' }}
+          style={{ display: "none" }}
           onClick={(e) => {
-            (e.target as HTMLInputElement).value = '';
+            (e.target as HTMLInputElement).value = "";
           }}
           onChange={(e) => {
             if (e.target.files?.[0]) {
@@ -767,9 +1102,9 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
 
         <div className={styles.profileIconContainer}>
           <div
-            className={`${styles.profileIcon} ${styles.profileIconEditable} ${isProfileIconDragging ? styles.profileIconDragging : ''}`}
+            className={`${styles.profileIcon} ${styles.profileIconEditable} ${isProfileIconDragging ? styles.profileIconDragging : ""}`}
             style={{
-              background: currentIcon ? 'transparent' : profileColor,
+              background: currentIcon ? "transparent" : profileColor,
             }}
             title="Click or drop image to update icon"
             onClick={() => profileIconFileInputRef.current?.click()}
@@ -793,10 +1128,14 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
             }}
           >
             {currentIcon ? (
-              <img src={currentIcon} alt={inlineProfileEdit.name || 'Profile'} className={styles.profileIconImg} />
+              <img
+                src={currentIcon}
+                alt={inlineProfileEdit.name || "Profile"}
+                className={styles.profileIconImg}
+              />
             ) : (
               <span className={styles.profileIconText}>
-                {inlineProfileEdit.name?.[0] || '?'}
+                {inlineProfileEdit.name?.[0] || "?"}
               </span>
             )}
             <div className={styles.profileIconOverlay}>
@@ -810,7 +1149,9 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
               title="Remove icon image"
               onClick={(e) => {
                 e.stopPropagation();
-                setInlineProfileEdit((prev) => prev ? ({ ...prev, icon: null }) : null);
+                setInlineProfileEdit((prev) =>
+                  prev ? { ...prev, icon: null } : null,
+                );
               }}
             >
               <CloseIcon size={8} />
@@ -824,10 +1165,14 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
           value={inlineProfileEdit.name}
           placeholder="Profile name"
           autoFocus
-          onChange={(e) => setInlineProfileEdit(prev => prev ? ({ ...prev, name: e.target.value }) : null)}
+          onChange={(e) =>
+            setInlineProfileEdit((prev) =>
+              prev ? { ...prev, name: e.target.value } : null,
+            )
+          }
           onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSaveProfile();
-            if (e.key === 'Escape') handleCancelProfileEdit();
+            if (e.key === "Enter") handleSaveProfile();
+            if (e.key === "Escape") handleCancelProfileEdit();
           }}
         />
 
@@ -870,8 +1215,14 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
 
         <nav className={styles.nav}>
           <div className={styles.navHeader}>
-            <div className={styles.sectionTitle} style={{ margin: 0 }}>Profiles</div>
-            <button className={styles.addProfileBtn} onClick={handleCreateProfile} title="Add Profile">
+            <div className={styles.sectionTitle} style={{ margin: 0 }}>
+              Profiles
+            </div>
+            <button
+              className={styles.addProfileBtn}
+              onClick={handleCreateProfile}
+              title="Add Profile"
+            >
               <Plus size={14} />
             </button>
           </div>
@@ -879,7 +1230,10 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
           {inlineProfileEdit?.isNew && renderProfileInlineEdit()}
 
           {profiles.map((profile, index) => {
-            const isEditing = inlineProfileEdit && !inlineProfileEdit.isNew && inlineProfileEdit.originalName === profile.name;
+            const isEditing =
+              inlineProfileEdit &&
+              !inlineProfileEdit.isNew &&
+              inlineProfileEdit.originalName === profile.name;
             if (isEditing) {
               return renderProfileInlineEdit();
             }
@@ -887,16 +1241,22 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
             return (
               <div
                 key={profile.name + index}
-                className={`${styles.navItem} ${selectedProfile?.name === profile.name && activeView === 'vault' ? styles.active : ''} ${
-                  draggedProfileName === profile.name ? styles.navItemDragging : ''
+                className={`${styles.navItem} ${selectedProfile?.name === profile.name && activeView === "vault" ? styles.active : ""} ${
+                  draggedProfileName === profile.name
+                    ? styles.navItemDragging
+                    : ""
                 } ${
-                  dragOverProfileName === profile.name && draggedProfileName !== profile.name && dragProfilePosition === 'above'
+                  dragOverProfileName === profile.name &&
+                  draggedProfileName !== profile.name &&
+                  dragProfilePosition === "above"
                     ? styles.navItemDropTargetAbove
-                    : ''
+                    : ""
                 } ${
-                  dragOverProfileName === profile.name && draggedProfileName !== profile.name && dragProfilePosition === 'below'
+                  dragOverProfileName === profile.name &&
+                  draggedProfileName !== profile.name &&
+                  dragProfilePosition === "below"
                     ? styles.navItemDropTargetBelow
-                    : ''
+                    : ""
                 }`}
                 draggable
                 onDragStart={(event) => {
@@ -910,11 +1270,11 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
                     clone.className = `${styles.navItem} ${styles.navItemDragGhost}`;
                     clone.style.width = `${rect.width}px`;
                     clone.style.height = `${rect.height}px`;
-                    clone.style.position = 'fixed';
-                    clone.style.top = '0px';
-                    clone.style.left = '0px';
-                    clone.style.zIndex = '-9999';
-                    clone.style.pointerEvents = 'none';
+                    clone.style.position = "fixed";
+                    clone.style.top = "0px";
+                    clone.style.left = "0px";
+                    clone.style.zIndex = "-9999";
+                    clone.style.pointerEvents = "none";
                     document.body.appendChild(clone);
                     event.dataTransfer.setDragImage(clone, offsetX, offsetY);
                     requestAnimationFrame(() => {
@@ -925,18 +1285,25 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
                   }
 
                   setDraggedProfileName(profile.name);
-                  event.dataTransfer.effectAllowed = 'move';
+                  event.dataTransfer.effectAllowed = "move";
                 }}
                 onDragOver={(event) => {
                   event.preventDefault();
-                  event.dataTransfer.dropEffect = 'move';
-                  if (draggedProfileName === null || draggedProfileName === profile.name) return;
+                  event.dataTransfer.dropEffect = "move";
+                  if (
+                    draggedProfileName === null ||
+                    draggedProfileName === profile.name
+                  )
+                    return;
 
                   const rect = event.currentTarget.getBoundingClientRect();
                   const midY = rect.top + rect.height / 2;
-                  const pos = event.clientY < midY ? 'above' : 'below';
+                  const pos = event.clientY < midY ? "above" : "below";
 
-                  if (dragOverProfileName !== profile.name || dragProfilePosition !== pos) {
+                  if (
+                    dragOverProfileName !== profile.name ||
+                    dragProfilePosition !== pos
+                  ) {
                     setDragOverProfileName(profile.name);
                     setDragProfilePosition(pos);
                   }
@@ -967,21 +1334,31 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
                 onClick={() => {
                   setSelectedProfile(profile);
                   setInlineEditId(null);
-                  setActiveView('vault');
+                  setActiveView("vault");
                 }}
               >
                 <div
                   className={styles.profileIcon}
-                  style={{ background: profile.color || '#333' }}
+                  style={{ background: profile.color || "#333" }}
                 >
                   {profile.displayIcon ? (
-                    <img src={profile.displayIcon} alt={profile.displayName} className={styles.profileIconImg} />
+                    <img
+                      src={profile.displayIcon}
+                      alt={profile.displayName}
+                      className={styles.profileIconImg}
+                    />
                   ) : (
-                    <span className={styles.profileIconText}>{profile.displayName?.[0] || '?'}</span>
+                    <span className={styles.profileIconText}>
+                      {profile.displayName?.[0] || "?"}
+                    </span>
                   )}
                 </div>
-                <span className={styles.profileNameText}>{profile.displayName}</span>
-                <div className={`${styles.profileActions} ${holdingProfileName === profile.name ? styles.isHoldingAny : ''}`}>
+                <span className={styles.profileNameText}>
+                  {profile.displayName}
+                </span>
+                <div
+                  className={`${styles.profileActions} ${holdingProfileName === profile.name ? styles.isHoldingAny : ""}`}
+                >
                   <button
                     className={styles.editProfileBtn}
                     onClick={(e) => handleStartEditProfile(e, profile)}
@@ -992,7 +1369,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
                   </button>
                   <button
                     type="button"
-                    className={`${styles.deleteProfileBtn} ${holdingProfileName === profile.name ? styles.isHolding : ''}`}
+                    className={`${styles.deleteProfileBtn} ${holdingProfileName === profile.name ? styles.isHolding : ""}`}
                     onMouseDown={(e) => startHoldingProfileDelete(e, profile)}
                     onMouseUp={cancelHoldingProfileDelete}
                     onMouseLeave={cancelHoldingProfileDelete}
@@ -1005,22 +1382,40 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
                     disabled={isDeletingProfileName === profile.name}
                     draggable={false}
                   >
-                    <svg className={styles.holdProgressRing} viewBox="0 0 32 32">
-                      <circle className={styles.holdProgressBg} cx="16" cy="16" r="13" />
-                      <circle className={styles.holdProgressFill} cx="16" cy="16" r="13" />
+                    <svg
+                      className={styles.holdProgressRing}
+                      viewBox="0 0 32 32"
+                    >
+                      <circle
+                        className={styles.holdProgressBg}
+                        cx="16"
+                        cy="16"
+                        r="13"
+                      />
+                      <circle
+                        className={styles.holdProgressFill}
+                        cx="16"
+                        cy="16"
+                        r="13"
+                      />
                     </svg>
                     <Trash2 className={styles.deleteProfileIcon} />
                   </button>
                 </div>
-                <span className={styles.badge}>{profile.accounts.length}</span>
+                <span className={styles.badge}>
+                  {profile.accounts.length +
+                    seedPhrases.filter(
+                      (phrase) => phrase.profile === profile.name,
+                    ).length}
+                </span>
               </div>
             );
           })}
         </nav>
 
-        <div 
-          className={`${styles.settings} ${activeView === 'settings' ? styles.active : ''}`}
-          onClick={() => setActiveView('settings')}
+        <div
+          className={`${styles.settings} ${activeView === "settings" ? styles.active : ""}`}
+          onClick={() => setActiveView("settings")}
         >
           <Settings className={styles.navIcon} />
           <span>Settings</span>
@@ -1029,27 +1424,50 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
 
       {/* Main Content */}
       <main className={styles.main}>
-        {activeView === 'settings' ? (
+        {activeView === "settings" ? (
           <SettingsPage onLockVault={onLockVault} />
         ) : (
           <>
             {/* Top Header */}
             <header className={styles.header}>
-            <div className={styles.headerLeftGroup}>
-              <div className={styles.searchBar}>
-                <Search className={styles.searchIcon} />
-                <input
-                  type="text"
-                  placeholder={activeProfile ? `Search in ${activeProfile.displayName}...` : 'Search your vault...'}
-                  className={styles.searchInput}
-                />
+              <div className={styles.headerLeftGroup}>
+                <div className={styles.searchBar}>
+                  <Search className={styles.searchIcon} />
+                  <input
+                    type="text"
+                    placeholder={
+                      activeProfile
+                        ? `Search in ${activeProfile.displayName}...`
+                        : "Search your vault..."
+                    }
+                    className={styles.searchInput}
+                  />
+                </div>
               </div>
-            </div>
-            <div className={styles.actionsGroup}>
-              <button className={styles.addButton} onClick={handleAddEntry}>
-                <Plus className={styles.addIcon} />
-                Add New
-              </button>
+              <div className={styles.actionsGroup}>
+                <button className={styles.addButton} onClick={handleAddEntry}>
+                  <Plus className={styles.addIcon} />
+                  Add Pass
+                </button>
+                <button
+                  className={styles.addButton}
+                  title="Wallet Seed Phrase"
+                  aria-label="Wallet Seed Phrase"
+                  type="button"
+                  disabled={!activeProfile}
+                  onClick={() => {
+                    if (!activeProfile) return;
+                    setPhraseForm({
+                      name: "",
+                      phrase: "",
+                      profile: activeProfile.name,
+                    });
+                    setPhraseError("");
+                  }}
+                >
+                  <Plus className={styles.addIcon} />
+                  Add Phrase
+                </button>
 
                 <div className={styles.windowControlsWrapper}>
                   <Navbar isUnlocked={true} onLockVault={onLockVault} />
@@ -1059,192 +1477,414 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({ onLockVault }) =
 
             {/* List */}
             <div className={styles.list}>
-              {!activeProfile ? (
-                <div className={styles.emptyState}>
-                  <User size={48} className={styles.emptyStateIcon} />
-                  <h3 className={styles.emptyStateTitle}>Select a Profile</h3>
-                  <p className={styles.emptyStateDesc}>Choose a profile from the sidebar to view its associated accounts.</p>
+              {phraseForm && activeProfile?.name === phraseForm.profile && (
+                <div className={styles.seedPhraseForm}>
+                  <input
+                    className={`${styles.inlineInput} ${styles.seedPhraseNameInput}`}
+                    aria-label="Wallet name"
+                    placeholder="Wallet name"
+                    value={phraseForm.name}
+                    onChange={(event) =>
+                      setPhraseForm((current) =>
+                        current
+                          ? { ...current, name: event.target.value }
+                          : current,
+                      )
+                    }
+                  />
+                  <input
+                    className={`${styles.inlineInput} ${styles.seedPhraseValueInput}`}
+                    aria-label="Seed phrase"
+                    placeholder="Seed phrase"
+                    autoComplete="off"
+                    spellCheck={false}
+                    value={phraseForm.phrase}
+                    onChange={(event) =>
+                      setPhraseForm((current) =>
+                        current
+                          ? { ...current, phrase: event.target.value }
+                          : current,
+                      )
+                    }
+                  />
+                  {phraseError && (
+                    <span className={styles.seedPhraseError}>
+                      {phraseError}
+                    </span>
+                  )}
+                  <div className={styles.inlineActions}>
+                    <button
+                      className={styles.inlineSaveBtn}
+                      onClick={() => void saveSeedPhrase()}
+                      disabled={
+                        !phraseForm.name.trim() || !phraseForm.phrase.trim()
+                      }
+                    >
+                      Save
+                    </button>
+                    <button
+                      className={styles.inlineCancelBtn}
+                      onClick={() => setPhraseForm(null)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-              ) : activeProfile.accounts.length === 0 && inlineEditId !== -1 ? (
-                <div className={styles.emptyState}>
-                  <User size={48} className={styles.emptyStateIcon} />
-                  <h3 className={styles.emptyStateTitle}>No Entries</h3>
-                  <p className={styles.emptyStateDesc}>This profile has no saved credentials yet. Click &ldquo;Add New&rdquo; to get started.</p>
-                </div>
-              ) : (
-                <>
-                  {activeProfile.accounts.map((item) => {
-                  const isEditingInline = inlineEditId === item.id;
-                  
-                  if (isEditingInline) {
-                    return renderInlineEdit(item);
-                  }
-
-                  return (
+              )}
+              {seedPhrases
+                .filter(
+                  (item) =>
+                    item.profile === (activeProfile?.name || "Default") &&
+                    phraseForm?.id !== item.id,
+                )
+                .map((item) => (
                   <div
-                    key={item.id}
-                    className={`${styles.tile} ${draggedEntryId === item.id ? styles.tileDragging : ''} ${
-                      dragOverEntryId === item.id && draggedEntryId !== item.id && dragDropPosition === 'above'
-                        ? styles.tileDropTargetAbove
-                        : ''
-                    } ${
-                      dragOverEntryId === item.id && draggedEntryId !== item.id && dragDropPosition === 'below'
-                        ? styles.tileDropTargetBelow
-                        : ''
-                    }`}
-                    draggable={inlineEditId !== item.id}
-                    onDragStart={(event) => {
-                      const currentTarget = event.currentTarget;
-                      const rect = currentTarget.getBoundingClientRect();
-                      const offsetX = event.clientX - rect.left;
-                      const offsetY = event.clientY - rect.top;
-
-                      try {
-                        const clone = currentTarget.cloneNode(true) as HTMLElement;
-                        clone.className = `${styles.tile} ${styles.tileDragGhost}`;
-                        clone.style.width = `${rect.width}px`;
-                        clone.style.height = `${rect.height}px`;
-                        clone.style.position = 'fixed';
-                        clone.style.top = '0px';
-                        clone.style.left = '0px';
-                        clone.style.zIndex = '-9999';
-                        clone.style.pointerEvents = 'none';
-                        document.body.appendChild(clone);
-                        event.dataTransfer.setDragImage(clone, offsetX, offsetY);
-                        requestAnimationFrame(() => {
-                          clone.remove();
-                        });
-                      } catch {
-                        // Fallback to default drag preview
-                      }
-
-                      setDraggedEntryId(item.id);
-                      event.dataTransfer.effectAllowed = 'move';
-                    }}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = 'move';
-                      if (draggedEntryId === null || draggedEntryId === item.id) return;
-
-                      const rect = event.currentTarget.getBoundingClientRect();
-                      const midY = rect.top + rect.height / 2;
-                      const pos = event.clientY < midY ? 'above' : 'below';
-
-                      if (dragOverEntryId !== item.id || dragDropPosition !== pos) {
-                        setDragOverEntryId(item.id);
-                        setDragDropPosition(pos);
-                      }
-                    }}
-                    onDragLeave={(event) => {
-                      const related = event.relatedTarget as Node | null;
-                      if (related && event.currentTarget.contains(related)) {
-                        return;
-                      }
-                      if (dragOverEntryId === item.id) {
-                        setDragOverEntryId(null);
-                        setDragDropPosition(null);
-                      }
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      const pos = dragDropPosition;
-                      setDragOverEntryId(null);
-                      setDragDropPosition(null);
-                      void reorderEntries(item.id, pos);
-                    }}
-                    onDragEnd={() => {
-                      setDraggedEntryId(null);
-                      setDragOverEntryId(null);
-                      setDragDropPosition(null);
-                    }}
+                    className={styles.seedPhraseCard}
+                    key={`seed-${item.id}`}
                   >
-                    <div className={styles.tileIconContainer}>
-                      <div className={styles.tileIconWrapper} style={{ color: item.color || '#818cf8' }}>
-                        {item.icon ? (
-                          <img src={item.icon} alt={item.website} className={styles.tileIconImg} />
-                        ) : (
-                          <span style={{ fontSize: '18px', fontWeight: 'bold', lineHeight: 1, textTransform: 'uppercase' }}>{item.website?.[0] || '?'}</span>
-                        )}
-                      </div>
+                    <div className={styles.seedPhraseCardHeading}>
+                      <strong>{item.name}</strong>
                     </div>
-
-                    <div className={styles.tileContent}>
-                      <h3 className={styles.tileTitle}>{item.website}</h3>
-                    </div>
-
-                    <div className={styles.tileUsernameContainer}>
-                      <span className={styles.tileUsernameText}>{item.username}</span>
-                    </div>
-
-                    <div className={styles.tilePasswordContainer}>
-                      <span 
-                        className={styles.tilePasswordText}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (visiblePasswords[item.id] && decryptedPasswords[item.id]) {
-                            navigator.clipboard.writeText(decryptedPasswords[item.id]);
-                            setFlashingPasswordId(item.id);
-                            setTimeout(() => {
-                              setFlashingPasswordId((prev) => (prev === item.id ? null : prev));
-                            }, 200);
-                          }
-                        }}
-                        style={{ 
-                          cursor: visiblePasswords[item.id] ? 'pointer' : 'default',
-                          opacity: flashingPasswordId === item.id ? 0.35 : undefined
-                        }}
-                        title={visiblePasswords[item.id] ? "Click to copy password" : ""}
-                      >
-                        {visiblePasswords[item.id] ? (decryptedPasswords[item.id] || '••••••••') : '••••••••'}
-                      </span>
+                    <div className={styles.seedPhraseSecret}>
+                      <code className={styles.seedPhraseWords}>
+                        {visiblePhrases[item.id] || "••••••••••••••••••••••••"}
+                      </code>
                       <button
-                        onClick={(e) => togglePassword(e, item.id)}
                         className={styles.tilePasswordToggleBtn}
-                        draggable={false}
+                        title={
+                          visiblePhrases[item.id]
+                            ? "Hide seed phrase"
+                            : "Reveal seed phrase"
+                        }
+                        aria-label={
+                          visiblePhrases[item.id]
+                            ? "Hide seed phrase"
+                            : "Reveal seed phrase"
+                        }
+                        onClick={() => void revealSeedPhrase(item.id)}
                       >
-                        {visiblePasswords[item.id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                        {visiblePhrases[item.id] ? (
+                          <EyeOff size={14} />
+                        ) : (
+                          <Eye size={14} />
+                        )}
                       </button>
                     </div>
-
                     <div className={styles.tileActions}>
                       <button
                         className={styles.tileEditBtn}
-                        onClick={(e) => handleEditEntry(e, item)}
-                        title="Edit entry"
-                        draggable={false}
+                        title="Edit seed phrase"
+                        aria-label="Edit seed phrase"
+                        onClick={() => void editSeedPhrase(item)}
                       >
                         <Edit2 size={14} className={styles.actionIcon} />
                       </button>
                       <button
                         type="button"
-                        className={`${styles.tileDeleteBtn} ${holdingEntryId === item.id ? styles.isHolding : ''}`}
-                        onMouseDown={(e) => startHoldingDelete(e, item.id)}
-                        onMouseUp={cancelHoldingDelete}
-                        onMouseLeave={cancelHoldingDelete}
-                        onTouchStart={(e) => startHoldingDelete(e, item.id)}
-                        onTouchEnd={cancelHoldingDelete}
-                        onTouchCancel={cancelHoldingDelete}
-                        onClick={(e) => e.stopPropagation()}
-                        onContextMenu={(e) => e.preventDefault()}
-                        title="Delete"
-                        disabled={isDeletingId === item.id}
-                        draggable={false}
+                        className={`${styles.tileDeleteBtn} ${holdingSeedPhraseId === item.id ? styles.isHolding : ""}`}
+                        title="Hold to delete seed phrase"
+                        aria-label="Hold to delete seed phrase"
+                        onMouseDown={(event) =>
+                          startHoldingSeedPhraseDelete(event, item.id)
+                        }
+                        onMouseUp={cancelHoldingSeedPhraseDelete}
+                        onMouseLeave={cancelHoldingSeedPhraseDelete}
+                        onTouchStart={(event) =>
+                          startHoldingSeedPhraseDelete(event, item.id)
+                        }
+                        onTouchEnd={cancelHoldingSeedPhraseDelete}
+                        onTouchCancel={cancelHoldingSeedPhraseDelete}
+                        onClick={(event) => event.stopPropagation()}
+                        onContextMenu={(event) => event.preventDefault()}
                       >
-                        <svg className={styles.holdProgressRing} viewBox="0 0 32 32">
-                          <circle className={styles.holdProgressBg} cx="16" cy="16" r="13" />
-                          <circle className={styles.holdProgressFill} cx="16" cy="16" r="13" />
+                        <svg
+                          className={styles.holdProgressRing}
+                          viewBox="0 0 32 32"
+                        >
+                          <circle
+                            className={styles.holdProgressBg}
+                            cx="16"
+                            cy="16"
+                            r="13"
+                          />
+                          <circle
+                            className={styles.holdProgressFill}
+                            cx="16"
+                            cy="16"
+                            r="13"
+                          />
                         </svg>
                         <Trash2 className={styles.deleteIcon} />
                       </button>
                     </div>
                   </div>
-                  );
-                })}
-                {inlineEditId === -1 && renderInlineEdit()}
-              </>
-            )}
-          </div>
-        </>
+                ))}
+              {!activeProfile ? (
+                <div className={styles.emptyState}>
+                  <User size={48} className={styles.emptyStateIcon} />
+                  <h3 className={styles.emptyStateTitle}>Select a Profile</h3>
+                  <p className={styles.emptyStateDesc}>
+                    Choose a profile from the sidebar to view its associated
+                    accounts.
+                  </p>
+                </div>
+              ) : activeProfile.accounts.length === 0 &&
+                seedPhrases.every(
+                  (item) => item.profile !== activeProfile.name,
+                ) &&
+                inlineEditId !== -1 ? (
+                <div className={styles.emptyState}>
+                  <User size={48} className={styles.emptyStateIcon} />
+                  <h3 className={styles.emptyStateTitle}>No Entries</h3>
+                  <p className={styles.emptyStateDesc}>
+                    This profile has no saved credentials yet. Click &ldquo;Add
+                    Pass&rdquo; to get started.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {activeProfile.accounts.map((item) => {
+                    const isEditingInline = inlineEditId === item.id;
+
+                    if (isEditingInline) {
+                      return renderInlineEdit(item);
+                    }
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`${styles.tile} ${draggedEntryId === item.id ? styles.tileDragging : ""} ${
+                          dragOverEntryId === item.id &&
+                          draggedEntryId !== item.id &&
+                          dragDropPosition === "above"
+                            ? styles.tileDropTargetAbove
+                            : ""
+                        } ${
+                          dragOverEntryId === item.id &&
+                          draggedEntryId !== item.id &&
+                          dragDropPosition === "below"
+                            ? styles.tileDropTargetBelow
+                            : ""
+                        }`}
+                        draggable={inlineEditId !== item.id}
+                        onDragStart={(event) => {
+                          const currentTarget = event.currentTarget;
+                          const rect = currentTarget.getBoundingClientRect();
+                          const offsetX = event.clientX - rect.left;
+                          const offsetY = event.clientY - rect.top;
+
+                          try {
+                            const clone = currentTarget.cloneNode(
+                              true,
+                            ) as HTMLElement;
+                            clone.className = `${styles.tile} ${styles.tileDragGhost}`;
+                            clone.style.width = `${rect.width}px`;
+                            clone.style.height = `${rect.height}px`;
+                            clone.style.position = "fixed";
+                            clone.style.top = "0px";
+                            clone.style.left = "0px";
+                            clone.style.zIndex = "-9999";
+                            clone.style.pointerEvents = "none";
+                            document.body.appendChild(clone);
+                            event.dataTransfer.setDragImage(
+                              clone,
+                              offsetX,
+                              offsetY,
+                            );
+                            requestAnimationFrame(() => {
+                              clone.remove();
+                            });
+                          } catch {
+                            // Fallback to default drag preview
+                          }
+
+                          setDraggedEntryId(item.id);
+                          event.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "move";
+                          if (
+                            draggedEntryId === null ||
+                            draggedEntryId === item.id
+                          )
+                            return;
+
+                          const rect =
+                            event.currentTarget.getBoundingClientRect();
+                          const midY = rect.top + rect.height / 2;
+                          const pos = event.clientY < midY ? "above" : "below";
+
+                          if (
+                            dragOverEntryId !== item.id ||
+                            dragDropPosition !== pos
+                          ) {
+                            setDragOverEntryId(item.id);
+                            setDragDropPosition(pos);
+                          }
+                        }}
+                        onDragLeave={(event) => {
+                          const related = event.relatedTarget as Node | null;
+                          if (
+                            related &&
+                            event.currentTarget.contains(related)
+                          ) {
+                            return;
+                          }
+                          if (dragOverEntryId === item.id) {
+                            setDragOverEntryId(null);
+                            setDragDropPosition(null);
+                          }
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          const pos = dragDropPosition;
+                          setDragOverEntryId(null);
+                          setDragDropPosition(null);
+                          void reorderEntries(item.id, pos);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedEntryId(null);
+                          setDragOverEntryId(null);
+                          setDragDropPosition(null);
+                        }}
+                      >
+                        <div className={styles.tileIconContainer}>
+                          <div
+                            className={styles.tileIconWrapper}
+                            style={{ color: item.color || "#818cf8" }}
+                          >
+                            {item.icon ? (
+                              <img
+                                src={item.icon}
+                                alt={item.website}
+                                className={styles.tileIconImg}
+                              />
+                            ) : (
+                              <span
+                                style={{
+                                  fontSize: "18px",
+                                  fontWeight: "bold",
+                                  lineHeight: 1,
+                                  textTransform: "uppercase",
+                                }}
+                              >
+                                {item.website?.[0] || "?"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className={styles.tileContent}>
+                          <h3 className={styles.tileTitle}>{item.website}</h3>
+                        </div>
+
+                        <div className={styles.tileUsernameContainer}>
+                          <span className={styles.tileUsernameText}>
+                            {item.username}
+                          </span>
+                        </div>
+
+                        <div className={styles.tilePasswordContainer}>
+                          <span
+                            className={styles.tilePasswordText}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (visiblePasswords[item.id] !== undefined) {
+                                navigator.clipboard.writeText(
+                                  visiblePasswords[item.id],
+                                );
+                                setFlashingPasswordId(item.id);
+                                setTimeout(() => {
+                                  setFlashingPasswordId((prev) =>
+                                    prev === item.id ? null : prev,
+                                  );
+                                }, 200);
+                              }
+                            }}
+                            style={{
+                              cursor:
+                                visiblePasswords[item.id] !== undefined
+                                  ? "pointer"
+                                  : "default",
+                              opacity:
+                                flashingPasswordId === item.id
+                                  ? 0.35
+                                  : undefined,
+                            }}
+                            title={
+                              visiblePasswords[item.id] !== undefined
+                                ? "Click to copy password"
+                                : ""
+                            }
+                          >
+                            {visiblePasswords[item.id] ?? "••••••••"}
+                          </span>
+                          <button
+                            onClick={(e) => togglePassword(e, item.id)}
+                            className={styles.tilePasswordToggleBtn}
+                            draggable={false}
+                          >
+                            {visiblePasswords[item.id] !== undefined ? (
+                              <EyeOff size={14} />
+                            ) : (
+                              <Eye size={14} />
+                            )}
+                          </button>
+                        </div>
+
+                        <div className={styles.tileActions}>
+                          <button
+                            className={styles.tileEditBtn}
+                            onClick={(e) => handleEditEntry(e, item)}
+                            title="Edit entry"
+                            draggable={false}
+                          >
+                            <Edit2 size={14} className={styles.actionIcon} />
+                          </button>
+                          <button
+                            type="button"
+                            className={`${styles.tileDeleteBtn} ${holdingEntryId === item.id ? styles.isHolding : ""}`}
+                            onMouseDown={(e) => startHoldingDelete(e, item.id)}
+                            onMouseUp={cancelHoldingDelete}
+                            onMouseLeave={cancelHoldingDelete}
+                            onTouchStart={(e) => startHoldingDelete(e, item.id)}
+                            onTouchEnd={cancelHoldingDelete}
+                            onTouchCancel={cancelHoldingDelete}
+                            onClick={(e) => e.stopPropagation()}
+                            onContextMenu={(e) => e.preventDefault()}
+                            title="Delete"
+                            disabled={isDeletingId === item.id}
+                            draggable={false}
+                          >
+                            <svg
+                              className={styles.holdProgressRing}
+                              viewBox="0 0 32 32"
+                            >
+                              <circle
+                                className={styles.holdProgressBg}
+                                cx="16"
+                                cy="16"
+                                r="13"
+                              />
+                              <circle
+                                className={styles.holdProgressFill}
+                                cx="16"
+                                cy="16"
+                                r="13"
+                              />
+                            </svg>
+                            <Trash2 className={styles.deleteIcon} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {inlineEditId === -1 && renderInlineEdit()}
+                </>
+              )}
+            </div>
+          </>
         )}
       </main>
     </div>

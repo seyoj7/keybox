@@ -112,7 +112,9 @@
   cursor: default;
   user-select: none;
   position: relative;
-  transition: background-color 0.2s, color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
 }
 
 .navItem:hover {
@@ -150,7 +152,7 @@
 
 .navItemDropTargetAbove::before,
 .navItemDropTargetBelow::after {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   right: 0;
@@ -228,7 +230,10 @@
   justify-content: center;
   padding: 4px;
   border-radius: 4px;
-  transition: opacity 0.2s, color 0.2s, background-color 0.2s;
+  transition:
+    opacity 0.2s,
+    color 0.2s,
+    background-color 0.2s;
 }
 
 .editProfileBtn:hover {
@@ -249,7 +254,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.2s, background-color 0.2s, transform 0.15s;
+  transition:
+    color 0.2s,
+    background-color 0.2s,
+    transform 0.15s;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -303,7 +311,9 @@
   font-weight: 600;
   cursor: pointer;
   border-radius: 8px;
-  transition: background-color 0.2s, color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
 }
 
 .settings:hover {
@@ -410,6 +420,74 @@
   opacity: 0.9;
 }
 
+.seedPhraseForm,
+.seedPhraseCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-surface);
+}
+.seedPhraseForm {
+  width: 100%;
+  box-sizing: border-box;
+  flex-direction: row;
+  align-items: center;
+  gap: 24px;
+  min-height: 58px;
+  padding: 12px 20px;
+}
+.seedPhraseNameInput {
+  flex: 0 0 140px;
+}
+.seedPhraseValueInput {
+  flex: 1;
+  min-width: 0;
+}
+.seedPhraseCard {
+  flex-direction: row;
+  align-items: center;
+  gap: 24px;
+  min-height: 58px;
+  box-sizing: border-box;
+  padding: 12px 20px;
+}
+.seedPhraseCardHeading {
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  gap: 3px;
+  color: var(--text-main);
+}
+.seedPhraseWords {
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: center;
+}
+.seedPhraseSecret {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+  gap: 8px;
+}
+.seedPhraseError {
+  color: #f87171;
+  font-size: 12px;
+  white-space: nowrap;
+}
+@media (max-width: 760px) {
+  .seedPhraseCard {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 .addIcon {
   width: 18px;
   height: 18px;
@@ -477,10 +555,11 @@
   display: flex;
   align-items: center;
   gap: 24px;
-  transition: transform 0.22s cubic-bezier(0.2, 0, 0, 1),
-              box-shadow 0.22s cubic-bezier(0.2, 0, 0, 1),
-              border-color 0.2s ease,
-              background-color 0.2s ease;
+  transition:
+    transform 0.22s cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 0.22s cubic-bezier(0.2, 0, 0, 1),
+    border-color 0.2s ease,
+    background-color 0.2s ease;
   cursor: default;
   position: relative;
   user-select: none;
@@ -516,7 +595,7 @@
 
 .tileDropTargetAbove::before,
 .tileDropTargetBelow::after {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   right: 0;
@@ -535,18 +614,17 @@
   bottom: -5px;
 }
 
-[data-theme='light'] .tileDragging {
+[data-theme="light"] .tileDragging {
   background: var(--bg-surface-hover) !important;
   border-color: var(--border-strong) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
 }
 
-[data-theme='light'] .tileDragGhost {
+[data-theme="light"] .tileDragGhost {
   background-color: var(--bg-surface) !important;
   border: 1px solid var(--border-strong) !important;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1) !important;
 }
-
 
 .tileIconContainer {
   position: relative;
@@ -627,7 +705,9 @@
   cursor: pointer;
   padding: 0;
   z-index: 10;
-  transition: transform 0.15s ease, background-color 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease;
 }
 
 .tileIconRemoveBtn:hover {
@@ -679,6 +759,7 @@
 
 .tilePasswordText {
   font-family: monospace;
+  font-size: 12px;
   word-break: break-all;
   user-select: none;
   transition: opacity 0.15s ease;
@@ -737,7 +818,9 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: color 0.2s, background-color 0.2s;
+  transition:
+    color 0.2s,
+    background-color 0.2s;
 }
 
 .tileEditBtn:hover {
@@ -758,7 +841,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.2s, background-color 0.2s, transform 0.15s;
+  transition:
+    color 0.2s,
+    background-color 0.2s,
+    transform 0.15s;
   user-select: none;
   -webkit-user-select: none;
 }
