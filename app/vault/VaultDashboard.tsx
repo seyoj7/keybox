@@ -105,6 +105,10 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
   const [inlineEditId, setInlineEditId] = useState<number | null>(null);
   const [activeView, setActiveView] = useState<"vault" | "settings">("vault");
   const [seedPhrases, setSeedPhrases] = useState<SeedPhraseEntry[]>([]);
+  const [draggedPhraseId, setDraggedPhraseId] = useState<number | null>(null);
+  const [dragOverPhraseId, setDragOverPhraseId] = useState<number | null>(null);
+  const [phraseDropPosition, setPhraseDropPosition] = useState<"above" | "below" | null>(null);
+  const [mixedRowOrder, setMixedRowOrder] = useState<string[]>([]);
   const [phraseForm, setPhraseForm] = useState<{
     id?: number;
     name: string;
@@ -198,6 +202,14 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
         setProfileOrder(await response.json());
       })
       .catch((error) => console.error("Failed to load profile order:", error));
+    apiFetch("/api/vault-order")
+      .then(async (response) => {
+        if (!response.ok) return;
+        const order: unknown = await response.json();
+        if (Array.isArray(order) && order.every((item) => typeof item === "string"))
+          setMixedRowOrder(order);
+      })
+      .catch((error) => console.error("Failed to load row order:", error));
   }, [onLockVault]);
 
   // Auto-clear timers: wipe plaintext from state after 30 seconds
@@ -528,6 +540,43 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
     },
     [activeProfile, draggedEntryId, entries],
   );
+
+  const mixedRowKeys = [
+    ...seedPhrases.map((item) => `phrase:${item.id}`),
+    ...entries.map((item) => `pass:${item.id}`),
+  ];
+  const orderedMixedRowKeys = [...mixedRowKeys].sort((a, b) => {
+    const aIndex = mixedRowOrder.indexOf(a);
+    const bIndex = mixedRowOrder.indexOf(b);
+    const effectiveA = aIndex < 0 ? mixedRowKeys.indexOf(a) : aIndex;
+    const effectiveB = bIndex < 0 ? mixedRowKeys.indexOf(b) : bIndex;
+    return effectiveA - effectiveB;
+  });
+  const mixedRowOrderMap = new Map(
+    orderedMixedRowKeys.map((key, index) => [key, index]),
+  );
+  const reorderMixedRows = useCallback(async (source: string, target: string, position: "above" | "below") => {
+    const order = [...orderedMixedRowKeys];
+    const from = order.indexOf(source);
+    const to = order.indexOf(target);
+    if (from < 0 || to < 0 || from === to) return;
+    order.splice(from, 1);
+    const targetIndex = order.indexOf(target);
+    order.splice(targetIndex + (position === "below" ? 1 : 0), 0, source);
+    const previous = mixedRowOrder;
+    setMixedRowOrder(order);
+    try {
+      const response = await apiFetch("/api/vault-order", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item_order: order }),
+      });
+      if (!response.ok) throw new Error("Failed to save row order");
+    } catch (error) {
+      console.error("Failed to save row order:", error);
+      setMixedRowOrder(previous);
+    }
+  }, [orderedMixedRowKeys, mixedRowOrder]);
 
   const reorderProfiles = useCallback(
     async (
@@ -1552,8 +1601,45 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
                 )
                 .map((item) => (
                   <div
-                    className={styles.seedPhraseCard}
+                    className={`${styles.seedPhraseCard} ${draggedPhraseId === item.id ? styles.tileDragging : ""} ${dragOverPhraseId === item.id && draggedPhraseId !== item.id && phraseDropPosition === "above" ? styles.tileDropTargetAbove : ""} ${dragOverPhraseId === item.id && draggedPhraseId !== item.id && phraseDropPosition === "below" ? styles.tileDropTargetBelow : ""}`}
                     key={`seed-${item.id}`}
+                    style={{ order: mixedRowOrderMap.get(`phrase:${item.id}`) }}
+                    draggable={phraseForm?.id !== item.id}
+                    onDragStart={(event) => {
+                      setDraggedPhraseId(item.id);
+                      event.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      if ((draggedPhraseId === null && draggedEntryId === null) || draggedPhraseId === item.id) return;
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      const position = event.clientY < rect.top + rect.height / 2 ? "above" : "below";
+                      setDragOverPhraseId(item.id);
+                      setPhraseDropPosition(position);
+                    }}
+                    onDragLeave={(event) => {
+                      const related = event.relatedTarget as Node | null;
+                      if (related && event.currentTarget.contains(related)) return;
+                      if (dragOverPhraseId === item.id) {
+                        setDragOverPhraseId(null);
+                        setPhraseDropPosition(null);
+                      }
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      const source = draggedEntryId !== null
+                        ? `pass:${draggedEntryId}`
+                        : draggedPhraseId !== null
+                          ? `phrase:${draggedPhraseId}`
+                          : null;
+                      if (source) void reorderMixedRows(source, `phrase:${item.id}`, phraseDropPosition ?? "above");
+                    }}
+                    onDragEnd={() => {
+                      setDraggedPhraseId(null);
+                      setDragOverPhraseId(null);
+                      setPhraseDropPosition(null);
+                    }}
                   >
                     <div className={styles.seedPhraseCardHeading}>
                       <strong>{item.name}</strong>
@@ -1679,6 +1765,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
                             ? styles.tileDropTargetBelow
                             : ""
                         }`}
+                        style={{ order: mixedRowOrderMap.get(`pass:${item.id}`) }}
                         draggable={inlineEditId !== item.id}
                         onDragStart={(event) => {
                           const currentTarget = event.currentTarget;
@@ -1718,7 +1805,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
                           event.preventDefault();
                           event.dataTransfer.dropEffect = "move";
                           if (
-                            draggedEntryId === null ||
+                            (draggedEntryId === null && draggedPhraseId === null) ||
                             draggedEntryId === item.id
                           )
                             return;
@@ -1754,7 +1841,15 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
                           const pos = dragDropPosition;
                           setDragOverEntryId(null);
                           setDragDropPosition(null);
-                          void reorderEntries(item.id, pos);
+                          const source = draggedPhraseId !== null
+                            ? `phrase:${draggedPhraseId}`
+                            : draggedEntryId !== null
+                              ? `pass:${draggedEntryId}`
+                              : null;
+                          if (source) {
+                            void reorderMixedRows(source, `pass:${item.id}`, pos ?? "above");
+                            if (draggedPhraseId === null) void reorderEntries(item.id, pos);
+                          }
                         }}
                         onDragEnd={() => {
                           setDraggedEntryId(null);

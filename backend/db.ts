@@ -345,6 +345,31 @@ export async function reorderPasswords(ids: number[]): Promise<void> {
   }
 }
 
+export async function reorderSeedPhrases(ids: number[]): Promise<void> {
+  await ensureDatabase();
+  const current = rows("SELECT id FROM seed_phrases").map((row) => Number(row[0]));
+  if (
+    ids.length !== current.length ||
+    new Set(ids).size !== ids.length ||
+    ids.some((id) => !current.includes(id))
+  )
+    throw new Error("The vault phrases changed. Refresh and try again.");
+  database.run("BEGIN");
+  try {
+    ids.forEach((id, index) =>
+      database.run("UPDATE seed_phrases SET order_index = ? WHERE id = ?", [
+        index,
+        id,
+      ]),
+    );
+    database.run("COMMIT");
+    persist();
+  } catch (error) {
+    database.run("ROLLBACK");
+    throw error;
+  }
+}
+
 export async function getDbMetadata(key: string): Promise<Uint8Array | null> {
   return getMetadata(key);
 }

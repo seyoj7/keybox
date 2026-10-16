@@ -255,6 +255,41 @@ async function dispatch(request: Request): Promise<Response> {
     }
     return json(200, { status: "updated" });
   }
+  if (method === "PUT" && path === "/api/seed-phrases/order") {
+    getVault();
+    if (
+      !Array.isArray(body.phrase_ids) ||
+      !body.phrase_ids.every(Number.isSafeInteger)
+    ) {
+      throw new ApiError(422, "phrase_ids must be an array of integers.");
+    }
+    try {
+      await db.reorderSeedPhrases(body.phrase_ids as number[]);
+    } catch (error) {
+      throw new ApiError(
+        409,
+        error instanceof Error ? error.message : "Unable to reorder phrases.",
+      );
+    }
+    return json(200, { status: "updated" });
+  }
+  if (path === "/api/vault-order" && method === "GET") {
+    getVault();
+    const saved = await db.getDbMetadata("vault_order");
+    try {
+      return json(200, saved ? JSON.parse(Buffer.from(saved).toString("utf8")) : []);
+    } catch {
+      return json(200, []);
+    }
+  }
+  if (path === "/api/vault-order" && method === "PUT") {
+    getVault();
+    if (!Array.isArray(body.item_order) || !body.item_order.every((item) =>
+      typeof item === "string" && /^(pass|phrase):\d+$/.test(item),
+    )) throw new ApiError(422, "item_order must contain typed row IDs.");
+    await db.saveDbMetadata("vault_order", Buffer.from(JSON.stringify(body.item_order)));
+    return json(200, { status: "updated" });
+  }
   if (method === "GET" && path === "/api/profile-order") {
     getVault();
     const saved = await db.getMetadata("profile_order");
