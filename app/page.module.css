@@ -276,6 +276,15 @@
   margin-top: 0.5rem;
 }
 
+.databaseRecoveryNotice {
+  max-width: 400px;
+  margin-top: 0.5rem;
+  color: #fbbf24;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
 .locateDatabase {
   width: 100%;
   max-width: 400px;

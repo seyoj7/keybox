@@ -29,19 +29,14 @@ async function readApiResponse(
 
 async function fetchVaultStatus(): Promise<{
   initialized: boolean;
-  databaseFound: boolean;
+  databaseRecovered: boolean;
 } | null> {
   const res = await apiFetch("/api/status");
   if (!res.ok) return null;
   const data = await readApiResponse(res);
   return {
     initialized: data.initialized === true,
-    // Older backend processes only return `initialized`; an uninitialized vault
-    // on those versions should still offer the database locator.
-    databaseFound:
-      typeof data.database_found === "boolean"
-        ? data.database_found
-        : data.initialized === true,
+    databaseRecovered: data.database_recovered === true,
   };
 }
 
@@ -81,7 +76,7 @@ export default function Home() {
   const [isVaultInitialized, setIsVaultInitialized] = useState<boolean | null>(
     null,
   );
-  const [isDatabaseFound, setIsDatabaseFound] = useState<boolean | null>(null);
+  const [databaseRecoveryNotice, setDatabaseRecoveryNotice] = useState(false);
   const [isImportingDatabase, setIsImportingDatabase] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const electronAPI =
@@ -98,7 +93,7 @@ export default function Home() {
       .then((initialized) => {
         if (initialized !== null) {
           setIsVaultInitialized(initialized.initialized);
-          setIsDatabaseFound(initialized.databaseFound);
+          setDatabaseRecoveryNotice(initialized.databaseRecovered);
         }
       })
       .catch((err) => console.error("Failed to check vault status:", err));
@@ -124,8 +119,8 @@ export default function Home() {
         throw new Error(
           "Database was imported, but its status could not be read.",
         );
-      setIsDatabaseFound(status.databaseFound);
       setIsVaultInitialized(status.initialized);
+      setDatabaseRecoveryNotice(false);
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "Failed to locate the database",
@@ -150,7 +145,6 @@ export default function Home() {
         if (isVaultInitialized === false) {
           await initializeVault(password);
           setIsVaultInitialized(true);
-          setIsDatabaseFound(true);
         } else {
           await unlockVault(password);
         }
@@ -281,7 +275,15 @@ export default function Home() {
               </div>
             )}
 
-            {error && <div className={styles.errorMessage}>{error}</div>}
+          {databaseRecoveryNotice && (
+            <div className={styles.databaseRecoveryNotice} role="status">
+              The damaged database was moved to a <code>corrupted-database</code>
+              folder (numbered if needed), and a fresh database is ready. Locate
+              a backup or create a new vault.
+            </div>
+          )}
+
+          {error && <div className={styles.errorMessage}>{error}</div>}
 
             {/* Unlock Vault Button */}
             <SpecularButton
@@ -308,7 +310,7 @@ export default function Home() {
             </SpecularButton>
           </form>
 
-          {isDatabaseFound === false && (
+          {isVaultInitialized === false && (
             <div className={styles.locateDatabase}>
               <span>Already have a Keybox vault?</span>
               <button

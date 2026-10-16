@@ -152,10 +152,12 @@ async function dispatch(request: Request): Promise<Response> {
   }
 
   if (method === "GET" && path === "/api/status") {
-    const database_found = await db.statusDatabaseFound();
+    const database_was_found = await db.statusDatabaseFound();
+    const initialized = database_was_found ? await isVaultInitialized() : false;
     return json(200, {
-      initialized: database_found ? await isVaultInitialized() : false,
-      database_found,
+      initialized,
+      database_found: await db.statusDatabaseFound(),
+      database_recovered: db.consumeDatabaseRecoveryStatus(),
     });
   }
   if (method === "POST" && path === "/api/init") {

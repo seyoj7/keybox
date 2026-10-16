@@ -95,6 +95,47 @@ const initializeSqlJs = appRequire("sql.js") as SqlJsInitializer;
 let SQL: SqlJsStatic | undefined;
 let database: Database;
 let initialized: Promise<void> | undefined;
+let databaseRecoveryPending = false;
+
+class CorruptDatabaseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CorruptDatabaseError";
+  }
+}
+
+function quarantineDatabase(): string {
+  const parent = path.dirname(DB_PATH);
+  const fileName = path.basename(DB_PATH);
+  let index = 0;
+  let quarantineDir: string;
+
+  while (true) {
+    const folderName =
+      index === 0 ? "corrupted-database" : `corrupted-database-${index}`;
+    quarantineDir = path.join(parent, folderName);
+    try {
+      fs.mkdirSync(quarantineDir);
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      index += 1;
+    }
+  }
+
+  const quarantinedPath = path.join(quarantineDir, fileName);
+  try {
+    fs.renameSync(DB_PATH, quarantinedPath);
+  } catch (error) {
+    try {
+      fs.rmdirSync(quarantineDir);
+    } catch {
+      // Keep the original move error; the database itself remains untouched.
+    }
+    throw error;
+  }
+  return quarantinedPath;
+}
 
 async function openDatabase(): Promise<void> {
   if (database) return;
@@ -102,11 +143,29 @@ async function openDatabase(): Promise<void> {
     locateFile: (file) => appRequire.resolve(`sql.js/dist/${file}`),
   });
   fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-  database = new SQL.Database(
-    fs.existsSync(/*turbopackIgnore: true*/ DB_PATH)
-      ? new Uint8Array(fs.readFileSync(/*turbopackIgnore: true*/ DB_PATH))
-      : undefined,
-  );
+  if (!fs.existsSync(/*turbopackIgnore: true*/ DB_PATH)) {
+    database = new SQL.Database();
+    return;
+  }
+
+  const contents = fs.readFileSync(/*turbopackIgnore: true*/ DB_PATH);
+  let candidate: Database;
+  try {
+    candidate = new SQL.Database(new Uint8Array(contents));
+  } catch {
+    throw new CorruptDatabaseError("The database file could not be opened.");
+  }
+
+  try {
+    const integrity = candidate.exec("PRAGMA quick_check")[0]?.values[0]?.[0];
+    if (integrity !== "ok")
+      throw new CorruptDatabaseError("The database failed its integrity check.");
+  } catch (error) {
+    candidate.close();
+    if (error instanceof CorruptDatabaseError) throw error;
+    throw new CorruptDatabaseError("The database failed its integrity check.");
+  }
+  database = candidate;
 }
 
 export async function ensureDatabase(): Promise<void> {
@@ -115,7 +174,17 @@ export async function ensureDatabase(): Promise<void> {
       config.db_dir = DB_DIR;
       saveConfig(config);
     }
-    await openDatabase();
+    try {
+      await openDatabase();
+    } catch (error) {
+      if (!(error instanceof CorruptDatabaseError)) throw error;
+      const quarantinedPath = quarantineDatabase();
+      console.warn(
+        `[Keybox] Corrupt database moved to ${quarantinedPath}; creating a fresh database.`,
+      );
+      database = new SQL!.Database();
+      databaseRecoveryPending = true;
+    }
     database.run(
       "CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value BLOB NOT NULL)",
     );
@@ -383,6 +452,12 @@ export async function saveDbMetadata(
 
 export async function statusDatabaseFound(): Promise<boolean> {
   return fs.existsSync(/*turbopackIgnore: true*/ DB_PATH);
+}
+
+export function consumeDatabaseRecoveryStatus(): boolean {
+  const recovered = databaseRecoveryPending;
+  databaseRecoveryPending = false;
+  return recovered;
 }
 
 export async function changeDbLocation(newDir: string): Promise<void> {

@@ -5,11 +5,7 @@ import { Vault } from "./vault";
 
 export async function isVaultInitialized(): Promise<boolean> {
   if (!(await db.statusDatabaseFound())) return false;
-  try {
-    return (await db.getMetadata("master_salt")) !== null;
-  } catch {
-    return false;
-  }
+  return (await db.getMetadata("master_salt")) !== null;
 }
 
 export async function setupVault(password: string): Promise<void> {

@@ -58,6 +58,8 @@ On Windows, the default database folder is `%APPDATA%\keybox`, which usually res
 
 The `db_dir` setting names a folder, not a database file. Use **Settings -> Database Location -> Change Location** to move the database. On the welcome screen, choose **Locate existing database** to select an existing file named `keybox.db`. The selected location is remembered in the relevant config file.
 
+If Keybox cannot open its database or it fails SQLite's integrity check, Keybox moves the file into a sibling `corrupted-database` folder (adding a number if that folder already exists) and creates a fresh database. The welcome screen then lets you locate a backup or create a new vault.
+
 ## Security notes
 
 - Entry data is encrypted in SQLite with AES-256-GCM. Key derivation uses Argon2id.
