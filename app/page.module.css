@@ -4,18 +4,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #020408;
-  padding: 20px;
+  background-color: var(--bg-main);
+  padding: 0;
 }
 
 .mainFrame {
   width: 100%;
-  max-width: 1020px;
-  min-height: 680px;
-  background-color: #090c13;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.8);
+  min-height: 100vh;
+  background-color: var(--bg-main);
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
   position: relative;
   overflow: hidden;
   display: flex;
@@ -34,7 +33,12 @@
 .baseDarkCanvas {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at 50% 30%, #0d121c 0%, #080a0f 65%, #050609 100%);
+  background: radial-gradient(
+    ellipse at 50% 30%,
+    var(--grad-inner) 0%,
+    var(--grad-mid) 65%,
+    var(--grad-outer) 100%
+  );
 }
 
 .centerContent {
@@ -57,17 +61,17 @@
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.03em;
-  color: #ffffff;
+  color: var(--text-main);
   margin-bottom: 12px;
 }
 
 .titleHighlight {
-  color: #818cf8;
+  color: var(--accent-primary);
 }
 
 .subtitle {
   font-size: 15px;
-  color: #8e98a8;
+  color: var(--text-muted);
   margin-bottom: 36px;
 }
 
@@ -83,8 +87,8 @@
   width: 100%;
   height: 52px;
   border-radius: 14px;
-  background-color: rgba(16, 20, 30, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.11);
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-strong);
   display: flex;
   align-items: center;
   padding: 0 16px;
@@ -93,7 +97,7 @@
 
 .lockIcon {
   margin-right: 12px;
-  color: #727e93;
+  color: var(--text-muted);
   width: 19px;
   height: 19px;
 }
@@ -103,7 +107,7 @@
   background: transparent;
   border: none;
   outline: none;
-  color: #ffffff;
+  color: var(--text-main);
   font-size: 15px;
   font-family: inherit;
 }
@@ -111,7 +115,7 @@
 .eyeButton {
   background: transparent;
   border: none;
-  color: #727e93;
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -129,8 +133,8 @@
   height: 52px;
   font-size: 15px;
   font-weight: 600;
-  color: #0b0f1a;
-  background-color: #818cf8;
+  color: var(--accent-btn-text);
+  background-color: var(--accent-primary);
 }
 
 .arrowIcon {
@@ -150,13 +154,13 @@
 .dividerLine {
   flex: 1;
   height: 1px;
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--border-medium);
 }
 
 .dividerText {
   padding: 0 14px;
   font-size: 13px;
-  color: #525e73;
+  color: var(--text-dim);
 }
 
 .helloCard {
@@ -170,6 +174,11 @@
   align-items: center;
 }
 
+.helloCard:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 .helloContent {
   display: flex;
   align-items: center;
@@ -179,7 +188,7 @@
 }
 
 .helloIconContainer {
-  color: #818cf8;
+  color: var(--accent-primary);
   display: flex;
   align-items: center;
 }
@@ -199,12 +208,12 @@
 .helloTitle {
   font-size: 15px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-main);
 }
 
 .helloSubtitle {
   font-size: 13px;
-  color: #6b778c;
+  color: var(--text-muted);
 }
 
 .modalContent {
@@ -234,7 +243,7 @@
 .modalIconScanning {
   background-color: rgba(129, 140, 248, 0.12);
   border: 1px solid rgba(129, 140, 248, 0.35);
-  color: #818cf8;
+  color: var(--accent-primary);
 }
 
 .modalIconCheck {
@@ -250,13 +259,13 @@
 .modalTitle {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-main);
   margin-bottom: 6px;
 }
 
 .modalSubtitle {
   font-size: 13px;
-  color: #8390a4;
+  color: var(--text-muted);
   margin-bottom: 20px;
 }
 
@@ -265,4 +274,40 @@
   font-size: 0.875rem;
   text-align: center;
   margin-top: 0.5rem;
+}
+
+.databaseRecoveryNotice {
+  max-width: 400px;
+  margin-top: 0.5rem;
+  color: #fbbf24;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.locateDatabase {
+  width: 100%;
+  max-width: 400px;
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.locateDatabaseButton {
+  border: 0;
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--accent-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.locateDatabaseButton:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }

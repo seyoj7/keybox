@@ -1,10 +1,16 @@
 "use client";
 
-import { useRef, useEffect, type CSSProperties, type ReactNode, type MouseEventHandler } from 'react';
-import { Renderer, Program, Mesh, Triangle, Color } from 'ogl';
-import './SpecularButton.css';
+import {
+  useRef,
+  useEffect,
+  type CSSProperties,
+  type ReactNode,
+  type MouseEventHandler,
+} from "react";
+import { Renderer, Program, Mesh, Triangle, Color } from "ogl";
+import "./SpecularButton.css";
 
-type ButtonSize = 'sm' | 'md' | 'lg';
+type ButtonSize = "sm" | "md" | "lg";
 
 export interface SpecularButtonProps {
   children?: ReactNode;
@@ -28,7 +34,7 @@ export interface SpecularButtonProps {
   disabled?: boolean;
   onClick?: MouseEventHandler<HTMLButtonElement>;
   className?: string;
-  type?: 'button' | 'submit' | 'reset';
+  type?: "button" | "submit" | "reset";
   style?: CSSProperties;
 }
 
@@ -112,15 +118,15 @@ void main() {
 `;
 
 const SpecularButton = ({
-  children = 'Get Started',
-  size = 'lg',
+  children = "Get Started",
+  size = "lg",
   radius = 18,
-  tint = '#ffffff',
+  tint = "#ffffff",
   tintOpacity = 0,
   blur = 0,
-  textColor = '#f5f5f5',
-  lineColor = '#ffffff',
-  baseColor = '#525252',
+  textColor = "#f5f5f5",
+  lineColor = "#ffffff",
+  baseColor = "#525252",
   intensity = 1,
   shineSize = 10,
   shineFade = 40,
@@ -132,15 +138,28 @@ const SpecularButton = ({
   animateOnlyOnHover = true,
   disabled = false,
   onClick,
-  className = '',
-  type = 'button',
-  style
+  className = "",
+  type = "button",
+  style,
 }: SpecularButtonProps) => {
   const btnRef = useRef<HTMLButtonElement>(null);
   const fxRef = useRef<HTMLSpanElement>(null);
   const propsRef = useRef<ShaderProps>({} as ShaderProps);
 
-  propsRef.current = { radius, lineColor, baseColor, intensity, shineSize, shineFade, thickness, speed, followMouse, proximity, autoAnimate, animateOnlyOnHover };
+  propsRef.current = {
+    radius,
+    lineColor,
+    baseColor,
+    intensity,
+    shineSize,
+    shineFade,
+    thickness,
+    speed,
+    followMouse,
+    proximity,
+    autoAnimate,
+    animateOnlyOnHover,
+  };
 
   useEffect(() => {
     const btn = btnRef.current;
@@ -148,7 +167,12 @@ const SpecularButton = ({
     if (!btn || !fx) return;
 
     const dpr = window.devicePixelRatio || 1;
-    const renderer = new Renderer({ alpha: true, premultipliedAlpha: true, antialias: true, dpr });
+    const renderer = new Renderer({
+      alpha: true,
+      premultipliedAlpha: true,
+      antialias: true,
+      dpr,
+    });
     const gl = renderer.gl;
     gl.clearColor(0, 0, 0, 0);
     gl.enable(gl.BLEND);
@@ -172,8 +196,8 @@ const SpecularButton = ({
         uShineSize: { value: 0.17 },
         uShineFade: { value: 0.7 },
         uThickness: { value: 1 },
-        uBaseWidth: { value: dpr }
-      }
+        uBaseWidth: { value: dpr },
+      },
     });
 
     const mesh = new Mesh(gl, { geometry, program });
@@ -187,7 +211,10 @@ const SpecularButton = ({
       sizeRef.w = w;
       sizeRef.h = h;
       renderer.setSize(w + PAD * 2, h + PAD * 2);
-      program.uniforms.uCenter.value = [(PAD + w / 2) * dpr, (PAD + h / 2) * dpr];
+      program.uniforms.uCenter.value = [
+        (PAD + w / 2) * dpr,
+        (PAD + h / 2) * dpr,
+      ];
       program.uniforms.uHalfSize.value = [(w / 2) * dpr, (h / 2) * dpr];
     };
     const ro = new ResizeObserver(resize);
@@ -211,7 +238,8 @@ const SpecularButton = ({
       if (isInside) {
         const nx = (e.clientX - cx) / (rect.width / 2);
         const ny = (cy - e.clientY) / (rect.height / 2);
-        pointerAngle = Math.atan2(2 / rect.height, -2 / rect.width) + nx * 0.3 + ny * 0.15;
+        pointerAngle =
+          Math.atan2(2 / rect.height, -2 / rect.width) + nx * 0.3 + ny * 0.15;
       } else {
         pointerAngle = Math.atan2(cy - e.clientY, e.clientX - cx);
       }
@@ -219,7 +247,10 @@ const SpecularButton = ({
       if (propsRef.current.animateOnlyOnHover) {
         proximityT = isInside ? 1 : 0;
       } else {
-        const t = Math.max(0, 1 - dist / Math.max(propsRef.current.proximity, 1));
+        const t = Math.max(
+          0,
+          1 - dist / Math.max(propsRef.current.proximity, 1),
+        );
         proximityT = t * t * (3 - 2 * t);
       }
     };
@@ -236,9 +267,9 @@ const SpecularButton = ({
       }
     };
 
-    window.addEventListener('pointermove', onPointerMove);
-    btn.addEventListener('pointerenter', onPointerEnter);
-    btn.addEventListener('pointerleave', onPointerLeave);
+    window.addEventListener("pointermove", onPointerMove);
+    btn.addEventListener("pointerenter", onPointerEnter);
+    btn.addEventListener("pointerleave", onPointerLeave);
 
     let angle = 2.4;
     let idleAngle = 2.4;
@@ -257,7 +288,11 @@ const SpecularButton = ({
 
       idleAngle += p.speed * dt;
       const target =
-        p.followMouse && pointerAngle != null && (!p.autoAnimate || proximityT > 0) ? pointerAngle : idleAngle;
+        p.followMouse &&
+        pointerAngle != null &&
+        (!p.autoAnimate || proximityT > 0)
+          ? pointerAngle
+          : idleAngle;
       const diff = ((target - angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
       angle += diff * (1 - Math.exp(-dt * 7));
 
@@ -268,7 +303,8 @@ const SpecularButton = ({
       lineC.set(p.lineColor);
       baseC.set(p.baseColor);
       program.uniforms.uAngle.value = angle;
-      program.uniforms.uRadius.value = Math.min(p.radius, Math.min(sizeRef.w, sizeRef.h) / 2) * dpr;
+      program.uniforms.uRadius.value =
+        Math.min(p.radius, Math.min(sizeRef.w, sizeRef.h) / 2) * dpr;
       program.uniforms.uLineColor.value = [lineC.r, lineC.g, lineC.b];
       program.uniforms.uBaseColor.value = [baseC.r, baseC.g, baseC.b];
       program.uniforms.uIntensity.value = p.intensity * bright;
@@ -282,11 +318,11 @@ const SpecularButton = ({
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
-      window.removeEventListener('pointermove', onPointerMove);
-      btn.removeEventListener('pointerenter', onPointerEnter);
-      btn.removeEventListener('pointerleave', onPointerLeave);
+      window.removeEventListener("pointermove", onPointerMove);
+      btn.removeEventListener("pointerenter", onPointerEnter);
+      btn.removeEventListener("pointerleave", onPointerLeave);
       if (gl.canvas.parentNode === fx) fx.removeChild(gl.canvas);
-      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
   }, []);
 
@@ -296,15 +332,15 @@ const SpecularButton = ({
       type={type}
       disabled={disabled}
       onClick={onClick}
-      className={`specular-button specular-button--${size}${className ? ` ${className}` : ''}`}
+      className={`specular-button specular-button--${size}${className ? ` ${className}` : ""}`}
       style={
         {
-          '--sb-radius': `${radius}px`,
-          '--sb-tint': tint,
-          '--sb-tint-opacity': tintOpacity,
-          '--sb-blur': `${blur}px`,
-          '--sb-text-color': textColor,
-          ...style
+          "--sb-radius": `${radius}px`,
+          "--sb-tint": tint,
+          "--sb-tint-opacity": tintOpacity,
+          "--sb-blur": `${blur}px`,
+          "--sb-text-color": textColor,
+          ...style,
         } as CSSProperties
       }
     >

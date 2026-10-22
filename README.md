@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Keybox
 
-## Getting Started
+Keybox is a local password manager with a Next.js interface, a TypeScript vault backend, and an Electron desktop wrapper. The desktop app runs Next.js locally, with its API routes calling the backend in the same process; it does not require a Keybox account or hosted service.
 
-First, run the development server:
+## Features
+
+- Store website, username, and password entries encrypted in a SQLite database.
+- Derive vault keys from the master password with Argon2id and encrypt entry data with AES-256-GCM.
+- Group entries by profile and generate passwords in the app.
+- Keep the database in the default per-user data folder or move it to another directory.
+- Choose a dark, light, or system theme.
+
+Windows Hello biometric unlock is unavailable. Use the master password to unlock the vault.
+
+## Requirements
+
+- Node.js 20.9 or newer
+- Windows for building the desktop installer
+
+## Set up a development environment
+
+Install the JavaScript dependencies:
+
+```bash
+npm install
+```
+
+Return to the project root before running the npm scripts.
+
+## Run locally
+
+From the project root, launch the development desktop app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Electron starts the Next.js development server on loopback. Its API routes call the TypeScript backend modules in the same server process. API calls go from the renderer through Electron's IPC bridge; the API rejects requests without the per-launch token.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Build the Windows app
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+From the project root, run:
 
-## Learn More
+```bash
+npm run build:windows
+```
 
-To learn more about Next.js, take a look at the following resources:
+The script builds the Next.js standalone frontend, including its API routes, and packages it with Electron Builder as an NSIS installer. Electron Builder may need internet access to download the Electron runtime during packaging. The installer is written to `dist/app/`, normally as `Keybox Setup <version>.exe`. The unpacked application is also written to `dist/app/win-unpacked/`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Electron includes the Chromium runtime, so the unpacked installation uses substantially more disk space than the compressed installer. Exact sizes vary with the Electron runtime and build contents. The desktop build targets Windows x64.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Database and configuration
 
-## Deploy on Vercel
+On Windows, the default database folder is `%APPDATA%\keybox`, which usually resolves to `C:\Users\<user>\AppData\Roaming\keybox`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Packaged app: the database is `keybox.db` in the configured database folder, and settings are saved in `%APPDATA%\keybox\config.json`.
+- Development: the database folder is selected by `db_dir` in `backend/config.json`; if it is not set, the same per-user default is used. Development settings are saved in `backend/config.json`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The `db_dir` setting names a folder, not a database file. Use **Settings -> Database Location -> Change Location** to move the database. On the welcome screen, choose **Locate existing database** to select an existing file named `keybox.db`. The selected location is remembered in the relevant config file.
+
+If Keybox cannot open its database or it fails SQLite's integrity check, Keybox moves the file into a sibling `corrupted-database` folder (adding a number if that folder already exists) and creates a fresh database. The welcome screen then lets you locate a backup or create a new vault.
+
+## Security notes
+
+- Entry data is encrypted in SQLite with AES-256-GCM. Key derivation uses Argon2id.
+- The master password is submitted to the local backend for setup and unlock; it is not written to the config file or stored as a password in the database.
+- The derived key remains in the Next.js server process memory while the vault is unlocked. Locking the vault overwrites its active byte buffer before clearing the reference.
+- In both development and packaged desktop mode, the Next.js server listens on `127.0.0.1`, so it is not exposed on the computer's network interfaces. API routes require a cryptographically random 256-bit token generated for each app launch. Electron's main process supplies the token to Next.js and adds it to API requests; the renderer receives API results through a restricted IPC bridge and never receives the token. CORS is disabled, and the Electron window blocks navigation away from its local frontend.
+- Other programs on the same computer can connect to the loopback port, but API routes reject requests unless they have the current Keybox session token. This is application-level access control, not operating-system process isolation; software running with sufficient access to the user's processes may be able to inspect them.
+- Starting the Next.js server directly without `KEYBOX_API_TOKEN` leaves its API unavailable. Use `npm run dev` to launch the desktop app. Database backups and synchronization are the user's responsibility if the database is moved into a synced folder.
+
+The project has not been independently security audited. Do not treat claims of zero-knowledge or air-gapped operation as a substitute for a review of the implementation.

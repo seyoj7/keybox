@@ -1,47 +1,68 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Lock, Eye, EyeOff, ArrowRight, Fingerprint, CheckCircle2 } from "lucide-react";
+import { Lock, Eye, EyeOff, ArrowRight, Fingerprint } from "lucide-react";
 import { Navbar } from "./components/Navbar";
 import { Footer } from "./components/Footer";
 
-import { Modal } from "./components/Modal";
 import SideRays from "./components/SideRays";
 import SpecularButton from "./components/SpecularButton";
 import { VaultDashboard } from "./vault/VaultDashboard";
+import { apiFetch } from "./lib/apiFetch";
 import styles from "./page.module.css";
 
 // ── API helpers ─────────────────────────────────────────────
 
-async function fetchVaultStatus(): Promise<boolean | null> {
-  const res = await fetch("/api/status");
+async function readApiResponse(
+  res: Response,
+): Promise<Record<string, unknown>> {
+  const body = await res.text();
+  try {
+    const data: unknown = JSON.parse(body);
+    return data && typeof data === "object"
+      ? (data as Record<string, unknown>)
+      : { detail: String(data) };
+  } catch {
+    return { detail: body || `Server returned HTTP ${res.status}` };
+  }
+}
+
+async function fetchVaultStatus(): Promise<{
+  initialized: boolean;
+  databaseRecovered: boolean;
+} | null> {
+  const res = await apiFetch("/api/status");
   if (!res.ok) return null;
-  const data = await res.json();
-  return data.initialized;
+  const data = await readApiResponse(res);
+  return {
+    initialized: data.initialized === true,
+    databaseRecovered: data.database_recovered === true,
+  };
 }
 
 async function initializeVault(password: string): Promise<void> {
-  const res = await fetch("/api/init", {
+  const res = await apiFetch("/api/init", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ password }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || "Failed to initialize vault");
+  const data = await readApiResponse(res);
+  if (!res.ok)
+    throw new Error(String(data.detail || "Failed to initialize vault"));
 }
 
 async function unlockVault(password: string): Promise<void> {
-  const res = await fetch("/api/unlock", {
+  const res = await apiFetch("/api/unlock", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ password }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || "Failed to unlock vault");
+  const data = await readApiResponse(res);
+  if (!res.ok) throw new Error(String(data.detail || "Failed to unlock vault"));
 }
 
 async function lockVault(): Promise<void> {
-  await fetch("/api/lock", { method: "POST" });
+  await apiFetch("/api/lock", { method: "POST" });
 }
 
 // ── Component ───────────────────────────────────────────────
@@ -52,16 +73,62 @@ export default function Home() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isVaultInitialized, setIsVaultInitialized] = useState<boolean | null>(null);
+  const [isVaultInitialized, setIsVaultInitialized] = useState<boolean | null>(
+    null,
+  );
+  const [databaseRecoveryNotice, setDatabaseRecoveryNotice] = useState(false);
+  const [isImportingDatabase, setIsImportingDatabase] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const electronAPI =
+    typeof window !== "undefined"
+      ? (
+          window as unknown as {
+            electron?: { locateDatabase?: () => Promise<string | null> };
+          }
+        ).electron
+      : undefined;
 
   useEffect(() => {
     fetchVaultStatus()
       .then((initialized) => {
-        if (initialized !== null) setIsVaultInitialized(initialized);
+        if (initialized !== null) {
+          setIsVaultInitialized(initialized.initialized);
+          setDatabaseRecoveryNotice(initialized.databaseRecovered);
+        }
       })
       .catch((err) => console.error("Failed to check vault status:", err));
   }, []);
+
+  const handleLocateDatabase = useCallback(async () => {
+    setIsImportingDatabase(true);
+    setError(null);
+    try {
+      const selectedPath = await electronAPI?.locateDatabase?.();
+      if (electronAPI?.locateDatabase && !selectedPath) return;
+      const res = await apiFetch("/api/db-location/locate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(selectedPath ? { path: selectedPath } : {}),
+      });
+      const data = await readApiResponse(res);
+      if (!res.ok)
+        throw new Error(String(data.detail || "Failed to locate the database"));
+
+      const status = await fetchVaultStatus();
+      if (!status)
+        throw new Error(
+          "Database was imported, but its status could not be read.",
+        );
+      setIsVaultInitialized(status.initialized);
+      setDatabaseRecoveryNotice(false);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Failed to locate the database",
+      );
+    } finally {
+      setIsImportingDatabase(false);
+    }
+  }, [electronAPI]);
 
   const handleUnlock = useCallback(
     async (e: React.FormEvent) => {
@@ -81,14 +148,14 @@ export default function Home() {
         } else {
           await unlockVault(password);
         }
-        localStorage.setItem("cached_master_password", password);
         setIsUnlocked(true);
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "An error occurred";
+        const message =
+          err instanceof Error ? err.message : "An error occurred";
         setError(message);
       }
     },
-    [password, confirmPassword, isVaultInitialized]
+    [password, confirmPassword, isVaultInitialized],
   );
 
   const handleLockVault = useCallback(async () => {
@@ -96,62 +163,6 @@ export default function Home() {
     setIsUnlocked(false);
     setPassword("");
     setConfirmPassword("");
-  }, []);
-
-  const handleOpenHello = useCallback(async () => {
-    try {
-      if (!window.PublicKeyCredential) {
-        throw new Error("Windows Hello (WebAuthn) is not supported on this device.");
-      }
-
-      setError(null);
-
-      const challenge = new Uint8Array(32);
-      window.crypto.getRandomValues(challenge);
-
-      const userId = new Uint8Array(16);
-      window.crypto.getRandomValues(userId);
-
-      // Trigger the native Windows Hello / OS authentication prompt
-      await navigator.credentials.create({
-        publicKey: {
-          challenge,
-          rp: {
-            name: "Keybox Vault",
-          },
-          user: {
-            id: userId,
-            name: "user@keybox.local",
-            displayName: "Keybox User",
-          },
-          pubKeyCredParams: [
-            { type: "public-key", alg: -7 },
-            { type: "public-key", alg: -257 }
-          ],
-          authenticatorSelection: {
-            authenticatorAttachment: "platform",
-            userVerification: "required",
-          },
-          timeout: 60000,
-        }
-      });
-
-      // Once verified by the OS, unlock the backend using the cached password
-      const cachedPassword = localStorage.getItem("cached_master_password");
-      if (cachedPassword) {
-        await unlockVault(cachedPassword);
-        setIsUnlocked(true);
-      } else {
-        throw new Error("Please unlock with your master password at least once to enable Windows Hello.");
-      }
-    } catch (err: any) {
-      console.error(err);
-      if (err.name === "NotAllowedError") {
-        setError("Windows Hello authentication was cancelled.");
-      } else {
-        setError(err.message || "Failed to authenticate with Windows Hello.");
-      }
-    }
   }, []);
 
   // ── Unlocked state: Vault dashboard ───────────────────────
@@ -176,7 +187,7 @@ export default function Home() {
         {/* Background Ambient Glowing Ribbon Wave */}
         <div className={styles.backgroundAura}>
           <div className={styles.baseDarkCanvas} />
-          <div style={{ position: 'absolute', inset: 0, opacity: 0.6 }}>
+          <div style={{ position: "absolute", inset: 0, opacity: 0.6 }}>
             <SideRays
               speed={2.5}
               rayColor1="#EAB308"
@@ -201,7 +212,7 @@ export default function Home() {
           <h1 className={styles.mainTitle}>
             Keep your passwords
             <br />
-            <span className={styles.titleHighlight}>Safe & Secure.</span>
+            <span className={styles.titleHighlight}>Encrypted.</span>
           </h1>
 
           <p className={styles.subtitle}>
@@ -218,7 +229,9 @@ export default function Home() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={isSetupMode ? "Create Master Password" : "Master Password"}
+                placeholder={
+                  isSetupMode ? "Create Master Password" : "Master Password"
+                }
                 className={styles.passwordInput}
               />
               <button
@@ -227,7 +240,11 @@ export default function Home() {
                 title={showPassword ? "Hide password" : "Show password"}
                 className={styles.eyeButton}
               >
-                {showPassword ? <Eye className={styles.eyeIcon} /> : <EyeOff className={styles.eyeIcon} />}
+                {showPassword ? (
+                  <Eye className={styles.eyeIcon} />
+                ) : (
+                  <EyeOff className={styles.eyeIcon} />
+                )}
               </button>
             </div>
 
@@ -244,26 +261,38 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  title={showConfirmPassword ? "Hide password" : "Show password"}
+                  title={
+                    showConfirmPassword ? "Hide password" : "Show password"
+                  }
                   className={styles.eyeButton}
                 >
-                  {showConfirmPassword ? <Eye className={styles.eyeIcon} /> : <EyeOff className={styles.eyeIcon} />}
+                  {showConfirmPassword ? (
+                    <Eye className={styles.eyeIcon} />
+                  ) : (
+                    <EyeOff className={styles.eyeIcon} />
+                  )}
                 </button>
               </div>
             )}
 
-            {error && (
-              <div className={styles.errorMessage}>{error}</div>
-            )}
+          {databaseRecoveryNotice && (
+            <div className={styles.databaseRecoveryNotice} role="status">
+              The damaged database was moved to a <code>corrupted-database</code>
+              folder (numbered if needed), and a fresh database is ready. Locate
+              a backup or create a new vault.
+            </div>
+          )}
+
+          {error && <div className={styles.errorMessage}>{error}</div>}
 
             {/* Unlock Vault Button */}
             <SpecularButton
               type="submit"
               size="lg"
               radius={14}
-              tint="#818cf8"
+              tint="var(--accent-primary)"
               tintOpacity={1}
-              textColor="#0b0f1a"
+              textColor="var(--accent-btn-text)"
               lineColor="#ffffff"
               baseColor="#6366f1"
               intensity={1}
@@ -281,50 +310,68 @@ export default function Home() {
             </SpecularButton>
           </form>
 
-          {/* "or" Divider */}
-          <div className={styles.dividerContainer}>
-            <div className={styles.dividerLine} />
-            <span className={styles.dividerText}>or</span>
-            <div className={styles.dividerLine} />
-          </div>
-
-          {/* Windows Hello Card */}
-          <SpecularButton
-            type="button"
-            onClick={handleOpenHello}
-            size="lg"
-            radius={16}
-            tint="#101520"
-            tintOpacity={0.65}
-            blur={14}
-            textColor="#ffffff"
-            lineColor="#818cf8"
-            baseColor="#263147"
-            intensity={1.1}
-            shineSize={20}
-            shineFade={35}
-            thickness={1.3}
-            speed={0.3}
-            followMouse={true}
-            proximity={0}
-            animateOnlyOnHover={true}
-            className={styles.helloCard}
-          >
-            <div className={styles.helloContent}>
-              <div className={styles.helloIconContainer}>
-                <Fingerprint className={styles.helloFingerprint} />
-              </div>
-              <div className={styles.helloTextContainer}>
-                <div className={styles.helloTitle}>Use Windows Hello</div>
-                <div className={styles.helloSubtitle}>Sign in with your fingerprint</div>
-              </div>
+          {isVaultInitialized === false && (
+            <div className={styles.locateDatabase}>
+              <span>Already have a Keybox vault?</span>
+              <button
+                type="button"
+                onClick={handleLocateDatabase}
+                disabled={isImportingDatabase}
+                className={styles.locateDatabaseButton}
+              >
+                {isImportingDatabase
+                  ? "Locating database…"
+                  : "Locate existing database"}
+              </button>
             </div>
-          </SpecularButton>
+          )}
+
+          {isVaultInitialized !== false && (
+            <>
+              <div className={styles.dividerContainer}>
+                <div className={styles.dividerLine} />
+                <span className={styles.dividerText}>or</span>
+                <div className={styles.dividerLine} />
+              </div>
+              <SpecularButton
+                type="button"
+                disabled
+                size="lg"
+                radius={16}
+                tint="var(--bg-surface)"
+                tintOpacity={0.8}
+                blur={14}
+                textColor="var(--text-main)"
+                lineColor="#818cf8"
+                baseColor="#263147"
+                intensity={1.1}
+                shineSize={20}
+                shineFade={35}
+                thickness={1.3}
+                speed={0.3}
+                followMouse={true}
+                proximity={0}
+                animateOnlyOnHover={true}
+                className={styles.helloCard}
+              >
+                <div className={styles.helloContent}>
+                  <div className={styles.helloIconContainer}>
+                    <Fingerprint className={styles.helloFingerprint} />
+                  </div>
+                  <div className={styles.helloTextContainer}>
+                    <div className={styles.helloTitle}>Use Windows Hello</div>
+                    <div className={styles.helloSubtitle}>
+                      Unavailable for now
+                    </div>
+                  </div>
+                </div>
+              </SpecularButton>
+            </>
+          )}
         </div>
 
         {/* Footer */}
         <Footer />
-
       </main>
     </div>
   );

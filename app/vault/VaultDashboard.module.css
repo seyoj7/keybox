@@ -6,8 +6,7 @@
   display: flex;
   width: 100%;
   height: 100%;
-  background-color: #0d1117;
-  border-radius: 20px;
+  background-color: var(--bg-content);
   overflow: hidden;
   position: absolute;
   inset: 0;
@@ -20,11 +19,11 @@
 
 .sidebar {
   width: 260px;
-  background-color: #11141d;
+  background-color: var(--bg-sidebar);
   display: flex;
   flex-direction: column;
   padding: 0 0 24px 0;
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  border-right: 1px solid var(--border-subtle);
 }
 
 .brand {
@@ -34,6 +33,7 @@
   height: 60px;
   padding: 0 24px;
   box-sizing: border-box;
+  -webkit-app-region: drag;
 }
 
 .brandLogoContainer {
@@ -48,13 +48,13 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+  filter: var(--shadow-logo);
 }
 
 .brandName {
   font-size: 17px;
   font-weight: 600;
-  color: #f1f5f9;
+  color: var(--text-main);
   letter-spacing: -0.01em;
 }
 
@@ -78,8 +78,8 @@
 
 .sectionTitle {
   font-size: 12px;
-  font-weight: 500;
-  color: #525e73;
+  font-weight: 600;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -87,11 +87,11 @@
 .addProfileBtn {
   background: transparent;
   border: none;
-  color: #8e98a8;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0;
   margin: 0;
-  margin-right: -3px;
+  margin-right: -4px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -99,7 +99,7 @@
 }
 
 .addProfileBtn:hover {
-  color: #ffffff;
+  color: var(--text-main);
 }
 
 .navItem {
@@ -107,20 +107,68 @@
   align-items: center;
   padding: 10px 12px;
   border-radius: 8px;
-  color: #8e98a8;
+  color: var(--text-muted);
   font-size: 14px;
-  cursor: pointer;
-  transition: background-color 0.2s, color 0.2s;
+  cursor: default;
+  user-select: none;
+  position: relative;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
 }
 
 .navItem:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
+  background-color: var(--border-subtle);
+  color: var(--text-main);
 }
 
 .navItem.active {
-  background-color: #1e2433;
-  color: #ffffff;
+  background-color: var(--bg-active);
+  color: var(--text-main);
+}
+
+.navItemDragging {
+  opacity: 0.6;
+  background-color: var(--bg-active) !important;
+  outline: 1px solid var(--border-strong) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+  position: relative;
+  z-index: 10;
+}
+
+.navItemDragGhost {
+  background-color: var(--bg-surface) !important;
+  border: 1px solid var(--border-strong) !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35) !important;
+  border-radius: 8px !important;
+  opacity: 0.95 !important;
+  pointer-events: none !important;
+}
+
+.navItemDropTargetAbove,
+.navItemDropTargetBelow {
+  position: relative;
+}
+
+.navItemDropTargetAbove::before,
+.navItemDropTargetBelow::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--accent-primary);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.navItemDropTargetAbove::before {
+  top: -3px;
+}
+
+.navItemDropTargetBelow::after {
+  bottom: -3px;
 }
 
 .profileIcon {
@@ -145,7 +193,7 @@
 .profileIconText {
   font-size: 12px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-main);
   text-transform: uppercase;
   line-height: 1;
 }
@@ -175,19 +223,22 @@
 .editProfileBtn {
   background: transparent;
   border: none;
-  color: #8e98a8;
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 4px;
   border-radius: 4px;
-  transition: opacity 0.2s, color 0.2s, background-color 0.2s;
+  transition:
+    opacity 0.2s,
+    color 0.2s,
+    background-color 0.2s;
 }
 
 .editProfileBtn:hover {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-main);
+  background: var(--border-strong);
 }
 
 .deleteProfileBtn {
@@ -197,13 +248,16 @@
   border-radius: 50%;
   background: transparent;
   border: none;
-  color: #8e98a8;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.2s, background-color 0.2s, transform 0.15s;
+  transition:
+    color 0.2s,
+    background-color 0.2s,
+    transform 0.15s;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -252,16 +306,19 @@
   align-items: center;
   padding: 10px 12px;
   margin: 0 16px;
-  color: #8e98a8;
+  color: var(--text-muted);
   font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   border-radius: 8px;
-  transition: background-color 0.2s, color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
 }
 
 .settings:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
+  background-color: var(--border-subtle);
+  color: var(--text-main);
 }
 
 .navIcon {
@@ -276,7 +333,7 @@
 
 .main {
   flex: 1;
-  background-color: #0d1117;
+  background-color: var(--bg-content);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -286,8 +343,10 @@
 .header {
   display: flex;
   align-items: center;
-  padding: 24px 32px;
+  height: 60px;
+  padding: 0 16px 0 32px;
   gap: 8px;
+  -webkit-app-region: drag;
 }
 
 .headerLeftGroup {
@@ -301,17 +360,18 @@
 .searchBar {
   flex: 1;
   min-width: 0;
-  background-color: #161b22;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
   display: flex;
   align-items: center;
-  padding: 0 16px;
-  height: 44px;
+  padding: 0 12px;
+  height: 32px;
+  -webkit-app-region: no-drag;
 }
 
 .searchIcon {
-  color: #8e98a8;
+  color: var(--text-muted);
   width: 18px;
   height: 18px;
   margin-right: 12px;
@@ -323,13 +383,13 @@
   min-width: 0;
   background: transparent;
   border: none;
-  color: #ffffff;
+  color: var(--text-main);
   outline: none;
   font-size: 14px;
 }
 
 .searchInput::placeholder {
-  color: #525e73;
+  color: var(--text-dim);
 }
 
 .actionsGroup {
@@ -339,24 +399,93 @@
 }
 
 .addButton {
-  background-color: #818cf8;
-  color: #0b0f1a;
+  background-color: var(--accent-primary);
+  color: var(--accent-btn-text);
   border: none;
-  border-radius: 12px;
-  padding: 0 20px;
-  height: 44px;
-  font-size: 14px;
+  border-radius: 8px;
+  padding: 0 16px;
+  height: 32px;
+  font-size: 13px;
   font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
   transition: opacity 0.2s;
   white-space: nowrap;
+  -webkit-app-region: no-drag;
 }
 
 .addButton:hover {
   opacity: 0.9;
+}
+
+.seedPhraseForm,
+.seedPhraseCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-surface);
+}
+.seedPhraseForm {
+  width: 100%;
+  box-sizing: border-box;
+  flex-direction: row;
+  align-items: center;
+  gap: 24px;
+  min-height: 58px;
+  padding: 12px 20px;
+}
+.seedPhraseNameInput {
+  flex: 0 0 140px;
+}
+.seedPhraseValueInput {
+  flex: 1;
+  min-width: 0;
+}
+.seedPhraseCard {
+  flex-direction: row;
+  align-items: center;
+  gap: 24px;
+  min-height: 58px;
+  box-sizing: border-box;
+  padding: 12px 20px;
+}
+.seedPhraseCardHeading {
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  gap: 3px;
+  color: var(--text-main);
+}
+.seedPhraseWords {
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: center;
+}
+.seedPhraseSecret {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+  gap: 8px;
+}
+.seedPhraseError {
+  color: #f87171;
+  font-size: 12px;
+  white-space: nowrap;
+}
+@media (max-width: 760px) {
+  .seedPhraseCard {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 
 .addIcon {
@@ -382,7 +511,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 0 32px 32px;
+  padding: 24px 32px 32px;
   overflow-y: auto;
 }
 
@@ -392,7 +521,7 @@
   align-items: center;
   justify-content: center;
   padding: 64px;
-  color: #525e73;
+  color: var(--text-dim);
   text-align: center;
   margin-top: 40px;
 }
@@ -405,7 +534,7 @@
 .emptyStateTitle {
   font-size: 18px;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--text-main);
   margin: 0 0 8px 0;
 }
 
@@ -419,19 +548,82 @@
    ========================================================================== */
 
 .tile {
-  background-color: #161b22;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
   padding: 12px 20px;
   display: flex;
   align-items: center;
   gap: 24px;
-  transition: transform 0.2s, background-color 0.2s;
-  cursor: pointer;
+  transition:
+    transform 0.22s cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 0.22s cubic-bezier(0.2, 0, 0, 1),
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+  cursor: default;
+  position: relative;
+  user-select: none;
 }
 
 .tile:hover {
-  background-color: #1c212b;
+  background-color: var(--bg-surface-hover);
+  border-color: var(--border-medium);
+}
+
+.tileDragging {
+  opacity: 0.6;
+  border-color: var(--border-strong) !important;
+  background-color: var(--bg-surface-hover) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3) !important;
+  position: relative;
+  z-index: 10;
+}
+
+.tileDragGhost {
+  background-color: var(--bg-surface-hover) !important;
+  border: 1px solid var(--border-strong) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45) !important;
+  border-radius: 12px !important;
+  opacity: 0.95 !important;
+  pointer-events: none !important;
+}
+
+.tileDropTargetAbove,
+.tileDropTargetBelow {
+  position: relative;
+}
+
+.tileDropTargetAbove::before,
+.tileDropTargetBelow::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--accent-primary);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.tileDropTargetAbove::before {
+  top: -5px;
+}
+
+.tileDropTargetBelow::after {
+  bottom: -5px;
+}
+
+[data-theme="light"] .tileDragging {
+  background: var(--bg-surface-hover) !important;
+  border-color: var(--border-strong) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .tileDragGhost {
+  background-color: var(--bg-surface) !important;
+  border: 1px solid var(--border-strong) !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1) !important;
 }
 
 .tileIconContainer {
@@ -450,7 +642,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--border-subtle);
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
@@ -466,14 +658,14 @@
 
 .tileIconWrapperEditable {
   cursor: pointer;
-  border: 1px dashed rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed var(--border-strong);
+  background: var(--border-subtle);
   transition: all 0.2s ease;
 }
 
 .tileIconWrapperEditable:hover,
 .tileIconWrapperDragging {
-  border-color: #818cf8;
+  border-color: var(--accent-primary);
   background: rgba(129, 140, 248, 0.12);
 }
 
@@ -487,7 +679,7 @@
   justify-content: center;
   opacity: 0;
   transition: opacity 0.18s ease;
-  color: #ffffff;
+  color: var(--text-main);
   border-radius: 7px;
   pointer-events: none;
 }
@@ -505,15 +697,17 @@
   height: 16px;
   border-radius: 50%;
   background: #ef4444;
-  color: #ffffff;
-  border: 1.5px solid #161b22;
+  color: var(--text-main);
+  border: 1.5px solid var(--bg-surface);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   padding: 0;
   z-index: 10;
-  transition: transform 0.15s ease, background-color 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease;
 }
 
 .tileIconRemoveBtn:hover {
@@ -531,7 +725,7 @@
 .tileTitle {
   font-size: 15px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-main);
   margin: 0 0 2px 0;
   white-space: nowrap;
   overflow: hidden;
@@ -543,7 +737,7 @@
   align-items: center;
   justify-content: center;
   flex: 1;
-  color: #8e98a8;
+  color: var(--text-muted);
   font-size: 14px;
   transform: translateX(-40px);
 }
@@ -558,20 +752,27 @@
   display: flex;
   align-items: center;
   flex: 1;
-  color: #8e98a8;
+  color: var(--text-muted);
   font-size: 14px;
   gap: 8px;
 }
 
 .tilePasswordText {
   font-family: monospace;
+  font-size: 12px;
   word-break: break-all;
+  user-select: none;
+  transition: opacity 0.15s ease;
+}
+
+.tilePasswordText:active {
+  opacity: 0.35;
 }
 
 .tilePasswordToggleBtn {
   background: transparent;
   border: none;
-  color: #8e98a8;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
   display: flex;
@@ -582,14 +783,14 @@
 }
 
 .tilePasswordToggleBtn:hover {
-  color: #ffffff;
+  color: var(--text-main);
 }
 
 .tileActions {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #525e73;
+  color: var(--text-dim);
   margin-left: auto;
 }
 
@@ -601,7 +802,7 @@
 }
 
 .actionIcon:hover {
-  color: #ffffff;
+  color: var(--text-main);
 }
 
 .tileEditBtn {
@@ -610,19 +811,21 @@
   border-radius: 50%;
   background: transparent;
   border: none;
-  color: #8e98a8;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: color 0.2s, background-color 0.2s;
+  transition:
+    color 0.2s,
+    background-color 0.2s;
 }
 
 .tileEditBtn:hover {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  background: var(--border-medium);
 }
 
 .tileDeleteBtn {
@@ -632,13 +835,16 @@
   border-radius: 50%;
   background: transparent;
   border: none;
-  color: #8e98a8;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.2s, background-color 0.2s, transform 0.15s;
+  transition:
+    color 0.2s,
+    background-color 0.2s,
+    transform 0.15s;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -711,7 +917,7 @@
 }
 
 .tileEditing:hover {
-  background-color: #161b22;
+  background-color: var(--bg-surface);
 }
 
 .tileEditing .tileUsernameContainer,
@@ -720,10 +926,10 @@
 }
 
 .inlineInput {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--border-subtle);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  color: #ffffff;
+  color: var(--text-main);
   font-size: 14px;
   padding: 6px 10px;
   height: 32px;
@@ -734,7 +940,7 @@
 }
 
 .inlineInput:focus {
-  border-color: #818cf8;
+  border-color: var(--accent-primary);
 }
 
 .inlineActions {
@@ -748,7 +954,7 @@
 .inlineSaveBtn {
   background: #10b981;
   border: none;
-  color: #ffffff;
+  color: var(--text-main);
   padding: 0 14px;
   height: 32px;
   border-radius: 6px;
@@ -772,8 +978,8 @@
 
 .inlineCancelBtn {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #e2e8f0;
+  border: 1px solid var(--border-strong);
+  color: var(--text-main);
   padding: 0 14px;
   height: 32px;
   border-radius: 6px;
@@ -786,7 +992,7 @@
 }
 
 .inlineCancelBtn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--border-subtle);
 }
 
 /* ==========================================================================
@@ -836,7 +1042,7 @@
 
 .profileIconEditable:hover,
 .profileIconDragging {
-  border-color: #818cf8;
+  border-color: var(--accent-primary);
   filter: brightness(1.2);
 }
 
@@ -850,7 +1056,7 @@
   justify-content: center;
   opacity: 0;
   transition: opacity 0.15s ease;
-  color: #ffffff;
+  color: var(--text-main);
   border-radius: 5px;
   pointer-events: none;
 }
@@ -868,8 +1074,8 @@
   height: 14px;
   border-radius: 50%;
   background: #ef4444;
-  color: #ffffff;
-  border: 1px solid #11141d;
+  color: var(--text-main);
+  border: 1px solid var(--bg-sidebar);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -890,7 +1096,7 @@
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 6px;
-  color: #ffffff;
+  color: var(--text-main);
   font-size: 13px;
   padding: 4px 8px;
   height: 28px;
@@ -900,7 +1106,7 @@
 }
 
 .profileInlineInput:focus {
-  border-color: #818cf8;
+  border-color: var(--accent-primary);
 }
 
 .profileInlineActions {
@@ -913,7 +1119,7 @@
 .profileSaveBtn {
   background: #10b981;
   border: none;
-  color: #ffffff;
+  color: var(--text-main);
   width: 28px;
   height: 28px;
   border-radius: 6px;
@@ -932,8 +1138,8 @@
 
 .profileCancelBtn {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #8e98a8;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
   width: 28px;
   height: 28px;
   border-radius: 6px;
@@ -947,7 +1153,7 @@
 }
 
 .profileCancelBtn:hover {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+  background: var(--border-subtle);
   border-color: rgba(255, 255, 255, 0.3);
 }

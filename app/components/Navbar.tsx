@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Minus, Square, X } from "lucide-react";
 import styles from "./Navbar.module.css";
 
@@ -9,20 +9,86 @@ interface NavbarProps {
   onLockVault?: () => void;
 }
 
+type ElectronWindowAPI = {
+  minimize: () => Promise<void>;
+  maximize: () => Promise<boolean>;
+  close: () => Promise<void>;
+  isMaximized: () => Promise<boolean>;
+  onWindowStateChanged?: (
+    callback: (state: { maximized: boolean }) => void,
+  ) => () => void;
+};
+
+function getElectronAPI(): ElectronWindowAPI | undefined {
+  if (typeof window === "undefined") return undefined;
+  return (window as Window & { electron?: ElectronWindowAPI }).electron;
+}
+
 export const Navbar: React.FC<NavbarProps> = ({
   isUnlocked = false,
   onLockVault,
 }) => {
   const [isMaximized, setIsMaximized] = useState(false);
 
+  // Sync maximized state when the window resizes
+  useEffect(() => {
+    const electronAPI = getElectronAPI();
+    if (!electronAPI) return;
+
+    const syncMaximized = async () => {
+      try {
+        setIsMaximized(await electronAPI.isMaximized());
+      } catch (error) {
+        console.error("Could not read Electron window state:", error);
+      }
+    };
+
+    window.addEventListener("resize", syncMaximized);
+    const unsubscribe = electronAPI.onWindowStateChanged?.((state) => {
+      setIsMaximized(state.maximized);
+    });
+    void syncMaximized();
+    return () => {
+      window.removeEventListener("resize", syncMaximized);
+      unsubscribe?.();
+    };
+  }, []);
+
+  const handleMinimize = useCallback(() => {
+    void getElectronAPI()
+      ?.minimize()
+      .catch((error) => {
+        console.error("Could not minimize Keybox:", error);
+      });
+  }, []);
+
   const handleToggleMaximize = useCallback(() => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-      setIsMaximized(true);
+    const electronAPI = getElectronAPI();
+    if (electronAPI) {
+      void electronAPI
+        .maximize()
+        .then(setIsMaximized)
+        .catch((error) => {
+          console.error("Could not change Keybox window size:", error);
+        });
     } else {
-      document.exitFullscreen?.().catch(() => {});
-      setIsMaximized(false);
+      // Fallback for browser
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+        setIsMaximized(true);
+      } else {
+        document.exitFullscreen?.().catch(() => {});
+        setIsMaximized(false);
+      }
     }
+  }, []);
+
+  const handleClose = useCallback(() => {
+    void getElectronAPI()
+      ?.close()
+      .catch((error) => {
+        console.error("Could not close Keybox:", error);
+      });
   }, []);
 
   return (
@@ -30,17 +96,11 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Brand logo & name */}
       <div className={styles.brandGroup}>
         <div className={styles.logoContainer}>
-          <img
-            src="/logo.png"
-            alt="Keybox Logo"
-            className={styles.logoImage}
-          />
+          <img src="/logo.png" alt="Keybox Logo" className={styles.logoImage} />
         </div>
         <span className={styles.brandName}>Keybox</span>
 
-        {isUnlocked && (
-          <span className={styles.unlockedBadge}>Unlocked</span>
-        )}
+        {isUnlocked && <span className={styles.unlockedBadge}>Unlocked</span>}
       </div>
 
       {/* Window Controls */}
@@ -57,6 +117,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Minimize */}
         <button
+          onClick={handleMinimize}
           aria-label="Minimize"
           title="Minimize"
           className={styles.windowButton}
@@ -76,6 +137,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Close */}
         <button
+          onClick={handleClose}
           aria-label="Close"
           title="Close"
           className={`${styles.windowButton} ${styles.closeButton}`}
