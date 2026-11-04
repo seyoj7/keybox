@@ -7,3 +7,4 @@ dist/
 dist-backend/
 build/
 config.json
+.keybox-dev/

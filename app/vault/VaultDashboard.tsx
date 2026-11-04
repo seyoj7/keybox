@@ -178,6 +178,7 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
   const [flashingPasswordId, setFlashingPasswordId] = useState<number | null>(
     null,
   );
+  const [flashingPhraseId, setFlashingPhraseId] = useState<number | null>(null);
 
   // Fetch entries from backend on mount
   useEffect(() => {
@@ -1645,7 +1646,25 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
                       <strong>{item.name}</strong>
                     </div>
                     <div className={styles.seedPhraseSecret}>
-                      <code className={styles.seedPhraseWords}>
+                      <code
+                        className={styles.seedPhraseWords}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (revealedPhrase?.id !== item.id) return;
+                          void navigator.clipboard.writeText(revealedPhrase.phrase);
+                          setFlashingPhraseId(item.id);
+                          setTimeout(() => {
+                            setFlashingPhraseId((current) =>
+                              current === item.id ? null : current,
+                            );
+                          }, 200);
+                        }}
+                        style={{
+                          cursor: revealedPhrase?.id === item.id ? "pointer" : "default",
+                          opacity: flashingPhraseId === item.id ? 0.35 : undefined,
+                        }}
+                        title={revealedPhrase?.id === item.id ? "Click to copy wallet phrase" : ""}
+                      >
                         {(revealedPhrase?.id === item.id ? revealedPhrase.phrase : null) || "••••••••••••••••••••••••"}
                       </code>
                       <button

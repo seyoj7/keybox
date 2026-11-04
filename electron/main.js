@@ -16,8 +16,12 @@ const nextAppDir = isPackaged
   : resourcesPath;
 const serverPath = path.join(nextAppDir, "server.js");
 const nextCliPath = path.join(resourcesPath, "node_modules", "next", "dist", "bin", "next");
-const userDataPath = app.getPath("userData");
-const configPath = path.join(userDataPath, "config.json");
+const userDataPath = isPackaged
+  ? app.getPath("userData")
+  : path.join(resourcesPath, ".keybox-dev");
+const configPath = isPackaged
+  ? path.join(userDataPath, "config.json")
+  : path.join(resourcesPath, "backend", "config.json");
 const backendToken = crypto.randomBytes(32).toString("hex");
 
 let mainWindow = null;
@@ -100,7 +104,7 @@ async function startNextServer() {
     NODE_ENV: isPackaged ? "production" : "development",
     KEYBOX_API_TOKEN: backendToken,
     KEYBOX_DATA_DIR: userDataPath,
-    KEYBOX_CONFIG_PATH: isPackaged ? configPath : path.join(resourcesPath, "backend", "config.json"),
+    KEYBOX_CONFIG_PATH: configPath,
   };
   env.ELECTRON_RUN_AS_NODE = "1";
 

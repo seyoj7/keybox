@@ -491,10 +491,10 @@ export async function selectDatabaseFile(filePath: string): Promise<void> {
     !fs.existsSync(selected)
   )
     throw new Error("Select an existing Keybox database file named keybox.db.");
-  await ensureDatabase();
-  const candidate = new SQL!.Database(
-    new Uint8Array(fs.readFileSync(selected)),
-  );
+  SQL ??= await initializeSqlJs({
+    locateFile: (file) => appRequire.resolve(`sql.js/dist/${file}`),
+  });
+  const candidate = new SQL.Database(new Uint8Array(fs.readFileSync(selected)));
   try {
     const integrity = candidate.exec("PRAGMA quick_check")[0]?.values[0]?.[0];
     const tables =
@@ -506,19 +506,26 @@ export async function selectDatabaseFile(filePath: string): Promise<void> {
     if (!tables.includes("metadata") || !tables.includes("passwords"))
       throw new Error("The selected database is not a Keybox vault.");
   } catch (error) {
+    candidate.close();
     if (
       error instanceof Error &&
       error.message.startsWith("The selected database")
     )
       throw error;
     throw new Error("The selected file is not a readable Keybox database.");
-  } finally {
-    candidate.close();
   }
-  config = { ...loadConfig(), db_dir: path.dirname(selected) };
-  saveConfig(config);
-  database.close();
-  database = new SQL!.Database(new Uint8Array(fs.readFileSync(selected)));
+
+  const nextConfig = { ...loadConfig(), db_dir: path.dirname(selected) };
+  try {
+    saveConfig(nextConfig);
+  } catch (error) {
+    candidate.close();
+    throw error;
+  }
+
+  if (initialized) database.close();
+  database = candidate;
+  config = nextConfig;
   DB_PATH = selected;
   DB_DIR = path.dirname(selected);
   initialized = undefined;
