@@ -170,8 +170,19 @@ async function openDatabase(): Promise<void> {
 
 export async function ensureDatabase(): Promise<void> {
   initialized ??= (async () => {
-    if (!config.db_dir) {
-      config.db_dir = DB_DIR;
+    const settings = getAppSettings();
+    const normalizedConfig: Config = {
+      ...config,
+      db_dir: config.db_dir || DB_DIR,
+      theme: settings.theme,
+      autoLock: settings.autoLock,
+    };
+    if (
+      config.db_dir !== normalizedConfig.db_dir ||
+      config.theme !== normalizedConfig.theme ||
+      config.autoLock !== normalizedConfig.autoLock
+    ) {
+      config = normalizedConfig;
       saveConfig(config);
     }
     try {

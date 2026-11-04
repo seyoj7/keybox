@@ -41,6 +41,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onLockVault }) => {
       body: JSON.stringify(next),
     });
     if (!res.ok) console.error("Failed to save settings");
+    else if (next.autoLock && typeof window !== "undefined") {
+      window.dispatchEvent(new Event("keybox-auto-lock-changed"));
+    }
   };
 
   const applyTheme = (newTheme: string) => {

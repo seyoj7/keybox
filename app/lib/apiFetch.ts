@@ -17,6 +17,12 @@ type KeyboxElectronBridge = {
   ) => Promise<ElectronApiResponse>;
 };
 
+function reportApiActivity(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("keybox-api-activity"));
+  }
+}
+
 /** Send desktop API calls through Electron so the session token stays in the main process. */
 export async function apiFetch(
   url: string,
@@ -29,10 +35,13 @@ export async function apiFetch(
 
   if (!bridge?.apiRequest) {
     // Next.js handles the API route; only Electron can add the per-launch token.
-    return fetch(url, options);
+    const response = await fetch(url, options);
+    reportApiActivity();
+    return response;
   }
 
   const response = await bridge.apiRequest(url, options);
+  reportApiActivity();
   return new Response(response.body, {
     status: response.status,
     headers: response.contentType

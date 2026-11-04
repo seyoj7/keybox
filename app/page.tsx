@@ -159,11 +159,68 @@ export default function Home() {
   );
 
   const handleLockVault = useCallback(async () => {
-    await lockVault();
-    setIsUnlocked(false);
-    setPassword("");
-    setConfirmPassword("");
+    try {
+      await lockVault();
+    } finally {
+      setIsUnlocked(false);
+      setPassword("");
+      setConfirmPassword("");
+    }
   }, []);
+
+  useEffect(() => {
+    if (!isUnlocked) return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let expired = false;
+    let timeoutMs: number | null = null;
+
+    const resetTimer = () => {
+      if (timer) clearTimeout(timer);
+      if (timeoutMs === null || expired) return;
+      timer = setTimeout(() => {
+        expired = true;
+        void handleLockVault().catch((err) =>
+          console.error("Failed to notify backend of auto-lock:", err),
+        );
+      }, timeoutMs);
+    };
+
+    const loadTimeout = async () => {
+      try {
+        const res = await apiFetch("/api/settings");
+        if (!res.ok) return;
+        const settings = await res.json();
+        timeoutMs =
+          settings.autoLock === "never"
+            ? null
+            : ["5", "15", "60"].includes(settings.autoLock)
+              ? Number(settings.autoLock) * 60_000
+              : 5 * 60_000;
+        resetTimer();
+      } catch (err) {
+        console.error("Failed to load auto-lock setting:", err);
+      }
+    };
+
+    const onActivity = () => resetTimer();
+    const onSettingChanged = () => void loadTimeout();
+    window.addEventListener("keybox-api-activity", onActivity);
+    window.addEventListener("keybox-auto-lock-changed", onSettingChanged);
+    window.addEventListener("pointerdown", onActivity);
+    window.addEventListener("keydown", onActivity);
+    window.addEventListener("touchstart", onActivity);
+    void loadTimeout();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("keybox-api-activity", onActivity);
+      window.removeEventListener("keybox-auto-lock-changed", onSettingChanged);
+      window.removeEventListener("pointerdown", onActivity);
+      window.removeEventListener("keydown", onActivity);
+      window.removeEventListener("touchstart", onActivity);
+    };
+  }, [isUnlocked, handleLockVault]);
 
   // ── Unlocked state: Vault dashboard ───────────────────────
 
